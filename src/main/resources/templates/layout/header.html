@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<header class="site-header" th:fragment="header">
+    <div class="header-inner">
+        <a class="logo" th:href="@{/}">Mingler</a>
+        <nav class="main-nav">
+            <ul>
+                <li><a th:href="@{/}">홈</a></li>
+                <li><a th:href="@{/categories}">카테고리</a></li>
+                <li><a th:href="@{/events}">이벤트</a></li>
+                <li><a th:href="@{/support}">고객센터</a></li>
+            </ul>
+        </nav>
+        <div class="header-icons">
+            <a th:href="@{/search}" class="icon-link" aria-label="검색">
+                <img th:src="@{/images/icons/sch-b.svg}" alt="검색"/>
+            </a>
+            <a th:href="@{/mypage}" class="icon-link" aria-label="마이페이지">
+                <img th:src="@{/images/icons/my-b.svg}" alt="마이페이지"/>
+            </a>
+            <a th:href="@{/cart}" class="icon-link" aria-label="장바구니">
+                <img th:src="@{/images/icons/cart-b.svg}" alt="장바구니"/>
+            </a>
+        </div>
+    </div>
+</header>
+</body>
+</html>

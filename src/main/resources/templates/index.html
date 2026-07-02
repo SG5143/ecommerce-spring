@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Mingler</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="main-content">
+    <section class="hero-banner">
+        <h1>이번 시즌, 당신의 스타일을 완성하세요</h1>
+        <p>지금 만나는 신상품과 시즌 오프 할인</p>
+        <a th:href="@{/categories}" class="hero-button">쇼핑하러 가기</a>
+    </section>
+
+    <section class="product-section">
+        <h2 class="section-title">인기 상품</h2>
+        <div class="product-grid">
+            <div class="product-card" th:each="product : ${products}">
+                <img th:src="${product.imageUrl}" th:alt="${product.name}" class="product-image"/>
+                <p class="product-name" th:text="${product.name}">상품명</p>
+                <p class="product-price" th:text="${#numbers.formatInteger(product.price, 0, 'COMMA')} + '원'">0원</p>
+            </div>
+        </div>
+    </section>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>
