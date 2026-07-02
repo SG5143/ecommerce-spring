@@ -2,13 +2,76 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 <footer class="site-footer" th:fragment="footer">
-    <div class="footer-links">
-        <a th:href="@{/about}">회사소개</a>
-        <a th:href="@{/terms}">이용약관</a>
-        <a th:href="@{/privacy}">개인정보처리방침</a>
-        <a th:href="@{/support}">고객센터</a>
+    <div class="footer-inner">
+        <div class="footer-columns">
+            <div class="footer-column">
+                <button type="button" class="footer-column-toggle" aria-expanded="false" aria-controls="footer-column-service">
+                    <h3>고객 서비스</h3>
+                    <img th:src="@{/images/icons/select-icon.svg}" alt="" class="footer-toggle-icon"/>
+                </button>
+                <ul id="footer-column-service" class="footer-column-list">
+                    <li><a th:href="@{/business-inquiry}">기업 구매 문의</a></li>
+                    <li><a th:href="@{/support}">고객센터</a></li>
+                    <li><a th:href="@{/faq}">자주 묻는 질문</a></li>
+                    <li><a th:href="@{/benefits}">온라인 혜택</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <button type="button" class="footer-column-toggle" aria-expanded="false" aria-controls="footer-column-mypage">
+                    <h3>마이 페이지</h3>
+                    <img th:src="@{/images/icons/select-icon.svg}" alt="" class="footer-toggle-icon"/>
+                </button>
+                <ul id="footer-column-mypage" class="footer-column-list">
+                    <li><a th:href="@{/cart}">장바구니</a></li>
+                    <li><a th:href="@{/orders}">주문조회</a></li>
+                    <li><a th:href="@{/refunds}">교환/환불</a></li>
+                    <li><a th:href="@{/inquiry}">1:1 문의</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <button type="button" class="footer-column-toggle" aria-expanded="false" aria-controls="footer-column-info">
+                    <h3>정보</h3>
+                    <img th:src="@{/images/icons/select-icon.svg}" alt="" class="footer-toggle-icon"/>
+                </button>
+                <ul id="footer-column-info" class="footer-column-list">
+                    <li><a th:href="@{/notices}">공지사항</a></li>
+                    <li><a th:href="@{/careers}">채용안내</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <button type="button" class="footer-column-toggle" aria-expanded="false" aria-controls="footer-column-social">
+                    <h3>소셜 미디어</h3>
+                    <img th:src="@{/images/icons/select-icon.svg}" alt="" class="footer-toggle-icon"/>
+                </button>
+                <ul id="footer-column-social" class="footer-column-list">
+                    <li><a th:href="@{/instagram}">인스타그램</a></li>
+                    <li><a th:href="@{/kakaotalk}">카카오톡</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-contact">
+            <p class="footer-contact-label">고객센터</p>
+            <p class="footer-contact-phone">+82 02 1111 1111</p>
+            <p class="footer-contact-hours">09:30 ~ 17:30 &nbsp;|&nbsp; 주말 및 공휴일 휴무</p>
+        </div>
     </div>
-    <p class="footer-copyright">&copy; 2026 Mingler. All rights reserved.</p>
+    <div class="footer-bottom">
+        <a th:href="@{/terms}">이용약관</a>
+        <span>|</span>
+        <a th:href="@{/privacy}">개인정보처리방침</a>
+        <span>|</span>
+        <a th:href="@{/business-info}">사업자 정보 확인</a>
+    </div>
+
+    <div class="modal-overlay" id="not-supported-overlay">
+        <div class="modal-box" role="dialog" aria-modal="true">
+            <button type="button" class="modal-close" id="not-supported-close" aria-label="닫기">&times;</button>
+            <h2 class="modal-title">서비스 준비 중입니다.</h2>
+            <p class="modal-message">현재 개발 중인 기능입니다.<br/>더 나은 모습으로 찾아뵙겠습니다.</p>
+        </div>
+    </div>
+    <script th:src="@{/js/not-supported.js}" defer></script>
+    <script th:src="@{/js/footer.js}" defer></script>
 </footer>
 </body>
 </html>

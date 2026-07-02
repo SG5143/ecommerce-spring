@@ -3,6 +3,9 @@
 <body>
 <header class="site-header" th:fragment="header">
     <div class="header-inner">
+        <button type="button" class="hamburger-btn" aria-label="메뉴 열기" aria-expanded="false" aria-controls="mobile-nav-drawer">
+            <img th:src="@{/images/icons/ham-w.svg}" alt="" class="hamburger-icon"/>
+        </button>
         <a class="logo" th:href="@{/}">Mingler</a>
         <nav class="main-nav">
             <ul>
@@ -16,7 +19,7 @@
             <a th:href="@{/search}" class="icon-link" aria-label="검색">
                 <img th:src="@{/images/icons/sch-b.svg}" alt="검색"/>
             </a>
-            <a th:href="@{/mypage}" class="icon-link" aria-label="마이페이지">
+            <a th:href="@{/login}" class="icon-link" aria-label="마이페이지">
                 <img th:src="@{/images/icons/my-b.svg}" alt="마이페이지"/>
             </a>
             <a th:href="@{/cart}" class="icon-link" aria-label="장바구니">
@@ -24,6 +27,18 @@
             </a>
         </div>
     </div>
+
+    <div class="mobile-nav-overlay" id="mobile-nav-overlay"></div>
+    <nav class="mobile-nav-drawer" id="mobile-nav-drawer" aria-hidden="true">
+        <ul>
+            <li><a th:href="@{/}">홈</a></li>
+            <li><a th:href="@{/categories}">카테고리</a></li>
+            <li><a th:href="@{/events}">이벤트</a></li>
+            <li><a th:href="@{/support}">고객센터</a></li>
+        </ul>
+    </nav>
+
+    <script th:src="@{/js/header.js}" defer></script>
 </header>
 </body>
 </html>
