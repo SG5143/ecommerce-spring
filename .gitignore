@@ -35,3 +35,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Local profile ###
+application-local.yml
+application-local.yaml
+application-local.properties
