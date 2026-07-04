@@ -15,12 +15,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     document.addEventListener('click', function (event) {
-        const link = event.target.closest('a[href]');
-        if (!link) {
-            return;
-        }
-
-        if (!link.classList.contains('not-implemented')) {
+        const target = event.target.closest('a.not-implemented, button.not-implemented');
+        if (!target) {
             return;
         }
 

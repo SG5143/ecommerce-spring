@@ -528,17 +528,40 @@ button {
 .signup-field label {
     font-size: 13px;
     font-weight: 700;
-    color: #333;
+    color: #969696;
 }
 
 .signup-input,
 .signup-select {
     width: 100%;
-    padding: 14px 16px;
+    padding: 12px 14px;
     border: 1px solid #ddd;
     font-size: 14px;
     box-sizing: border-box;
     background-color: #fff;
+}
+
+.signup-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.signup-input-row .signup-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.signup-inline-button {
+    flex-shrink: 0;
+    padding: 0 20px;
+    border: 1px solid;
+    background-color: #111;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    min-width: 100px;
+    white-space: nowrap;
+    cursor: pointer;
 }
 
 .signup-birthdate-group {

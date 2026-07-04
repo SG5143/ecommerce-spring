@@ -36,21 +36,24 @@
 
         <div class="signup-field">
             <label for="signup-phone">전화번호</label>
-            <input type="tel" id="signup-phone" name="phone" class="signup-input" placeholder="전화번호"/>
+            <div class="signup-input-row">
+                <input type="tel" id="signup-phone" name="phone" class="signup-input" placeholder="전화번호"/>
+                <button type="button" class="signup-inline-button not-implemented">본인확인</button>
+            </div>
         </div>
 
         <div class="signup-field">
             <label for="signup-zipcode">우편번호</label>
-            <input type="text" id="signup-zipcode" name="zipcode" class="signup-input signup-input-zipcode" placeholder="우편번호"/>
+            <div class="signup-input-row">
+                <input type="text" id="signup-zipcode" name="zipcode" class="signup-input signup-input-zipcode" placeholder="우편번호"/>
+                <button type="button" class="signup-inline-button not-implemented">검색</button>
+            </div>
         </div>
 
         <div class="signup-field">
             <label for="signup-address">주소</label>
             <input type="text" id="signup-address" name="address" class="signup-input" placeholder="주소"/>
-        </div>
-
-        <div class="signup-field">
-            <label for="signup-address-detail">상세주소</label>
+<!--            <label for="signup-address-detail">상세주소</label>-->
             <input type="text" id="signup-address-detail" name="addressDetail" class="signup-input" placeholder="상세주소"/>
         </div>
 
@@ -58,15 +61,15 @@
             <label>생년월일</label>
             <div class="signup-birthdate-group">
                 <select name="birthYear" class="signup-select">
-                    <option value="">년</option>
+                    <option value="">YYYY</option>
                     <option th:each="y : ${#numbers.sequence(2026, 1926, -1)}" th:value="${y}" th:text="${y}"></option>
                 </select>
                 <select name="birthMonth" class="signup-select">
-                    <option value="">월</option>
+                    <option value="">MM</option>
                     <option th:each="m : ${#numbers.sequence(1, 12)}" th:value="${m}" th:text="${m}"></option>
                 </select>
                 <select name="birthDay" class="signup-select">
-                    <option value="">일</option>
+                    <option value="">DD</option>
                     <option th:each="d : ${#numbers.sequence(1, 31)}" th:value="${d}" th:text="${d}"></option>
                 </select>
             </div>
