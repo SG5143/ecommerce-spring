@@ -500,6 +500,68 @@ button {
     box-sizing: border-box;
 }
 
+/* Signup page */
+.signup-page {
+    width: min(92%, 480px);
+    margin: 0 auto;
+    padding: 60px 0 150px;
+}
+
+.signup-title {
+    margin: 0 0 24px;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.signup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.signup-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.signup-field label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #333;
+}
+
+.signup-input,
+.signup-select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    box-sizing: border-box;
+    background-color: #fff;
+}
+
+.signup-birthdate-group {
+    display: flex;
+    gap: 8px;
+}
+
+.signup-birthdate-group .signup-select {
+    flex: 1;
+}
+
+.signup-submit {
+    width: 100%;
+    padding: 16px;
+    margin-top: 8px;
+    background-color: #111;
+    color: #fff;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
     .header-inner {

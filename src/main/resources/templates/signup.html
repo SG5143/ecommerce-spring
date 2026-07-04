@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>회원가입 - Mingler</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="signup-page">
+    <h1 class="signup-title">회원가입</h1>
+
+    <form class="signup-form not-implemented">
+        <div class="signup-field">
+            <label for="signup-username">아이디</label>
+            <input type="text" id="signup-username" name="username" class="signup-input" placeholder="아이디" autocomplete="username"/>
+        </div>
+
+        <div class="signup-field">
+            <label for="signup-password">비밀번호</label>
+            <input type="password" id="signup-password" name="password" class="signup-input" placeholder="비밀번호" autocomplete="new-password"/>
+        </div>
+
+        <div class="signup-field">
+            <label for="signup-password-confirm">비밀번호 확인</label>
+            <input type="password" id="signup-password-confirm" name="passwordConfirm" class="signup-input" placeholder="비밀번호 확인" autocomplete="new-password"/>
+        </div>
+
+        <div class="signup-field">
+            <label for="signup-name">이름</label>
+            <input type="text" id="signup-name" name="name" class="signup-input" placeholder="이름"/>
+        </div>
+
+        <div class="signup-field">
+            <label for="signup-phone">전화번호</label>
+            <input type="tel" id="signup-phone" name="phone" class="signup-input" placeholder="전화번호"/>
+        </div>
+
+        <div class="signup-field">
+            <label for="signup-zipcode">우편번호</label>
+            <input type="text" id="signup-zipcode" name="zipcode" class="signup-input signup-input-zipcode" placeholder="우편번호"/>
+        </div>
+
+        <div class="signup-field">
+            <label for="signup-address">주소</label>
+            <input type="text" id="signup-address" name="address" class="signup-input" placeholder="주소"/>
+        </div>
+
+        <div class="signup-field">
+            <label for="signup-address-detail">상세주소</label>
+            <input type="text" id="signup-address-detail" name="addressDetail" class="signup-input" placeholder="상세주소"/>
+        </div>
+
+        <div class="signup-field">
+            <label>생년월일</label>
+            <div class="signup-birthdate-group">
+                <select name="birthYear" class="signup-select">
+                    <option value="">년</option>
+                    <option th:each="y : ${#numbers.sequence(2026, 1926, -1)}" th:value="${y}" th:text="${y}"></option>
+                </select>
+                <select name="birthMonth" class="signup-select">
+                    <option value="">월</option>
+                    <option th:each="m : ${#numbers.sequence(1, 12)}" th:value="${m}" th:text="${m}"></option>
+                </select>
+                <select name="birthDay" class="signup-select">
+                    <option value="">일</option>
+                    <option th:each="d : ${#numbers.sequence(1, 31)}" th:value="${d}" th:text="${d}"></option>
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" class="signup-submit">회원가입</button>
+    </form>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>

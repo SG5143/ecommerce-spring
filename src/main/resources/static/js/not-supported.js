@@ -6,8 +6,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
-    const IMPLEMENTED_PATHS = ['/', '/login'];
-
     function openModal() {
         overlay.classList.add('is-open');
     }
@@ -22,18 +20,15 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        const url = new URL(link.href, window.location.origin);
-        if (url.origin !== window.location.origin) {
+        if (!link.classList.contains('not-implemented')) {
             return;
         }
 
-        if (IMPLEMENTED_PATHS.indexOf(url.pathname) === -1) {
-            event.preventDefault();
-            openModal();
-        }
+        event.preventDefault();
+        openModal();
     });
 
-    document.querySelectorAll('.login-form').forEach(function (form) {
+    document.querySelectorAll('form.not-implemented').forEach(function (form) {
         form.addEventListener('submit', function (event) {
             event.preventDefault();
             openModal();

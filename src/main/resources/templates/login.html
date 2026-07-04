@@ -13,26 +13,26 @@
 <main class="login-page">
     <h1 class="login-title">로그인</h1>
 
-    <form class="login-form">
+    <form class="login-form not-implemented">
         <input type="text" name="username" class="login-input" placeholder="아이디" autocomplete="username"/>
         <input type="password" name="password" class="login-input" placeholder="비밀번호" autocomplete="current-password"/>
         <button type="submit" class="login-submit">로그인</button>
     </form>
 
     <div class="login-helper-links">
-        <a th:href="@{/find-id}">아이디 찾기</a>
+        <a th:href="@{/find-id}" class="not-implemented">아이디 찾기</a>
         <span>|</span>
-        <a th:href="@{/find-password}">비밀번호 찾기</a>
+        <a th:href="@{/find-password}" class="not-implemented">비밀번호 찾기</a>
         <span>|</span>
-        <a th:href="@{/guest-order}">비회원 주문조회</a>
+        <a th:href="@{/guest-order}" class="not-implemented">비회원 주문조회</a>
     </div>
 
     <div class="social-login">
-        <a th:href="@{/oauth2/authorization/kakao}" class="social-login-button social-login-kakao">
+        <a th:href="@{/oauth2/authorization/kakao}" class="social-login-button social-login-kakao not-implemented">
             <img th:src="@{/images/icons/kakao.png}" alt="" class="social-login-icon"/>
             <span>카카오톡 로그인</span>
         </a>
-        <a th:href="@{/oauth2/authorization/naver}" class="social-login-button social-login-naver">
+        <a th:href="@{/oauth2/authorization/naver}" class="social-login-button social-login-naver not-implemented">
             <img th:src="@{/images/icons/naver.png}" alt="" class="social-login-icon"/>
             <span>네이버 로그인</span>
         </a>
