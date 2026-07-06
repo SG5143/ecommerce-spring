@@ -551,6 +551,20 @@ button {
     min-width: 0;
 }
 
+.signup-field-message {
+    margin: 0;
+    font-size: 12px;
+    min-height: 14px;
+}
+
+.signup-field-message.is-success {
+    color: #2e7d32;
+}
+
+.signup-field-message.is-error {
+    color: #c62828;
+}
+
 .signup-inline-button {
     flex-shrink: 0;
     padding: 0 20px;

@@ -6,6 +6,7 @@
     <title>회원가입 - Mingler</title>
     <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/signup.js}" defer></script>
 </head>
 <body>
 <div th:replace="~{layout/header :: header}"></div>
@@ -17,6 +18,7 @@
         <div class="signup-field">
             <label for="signup-username">아이디</label>
             <input type="text" id="signup-username" name="username" class="signup-input" placeholder="아이디" autocomplete="username"/>
+            <p id="signup-username-message" class="signup-field-message"></p>
         </div>
 
         <div class="signup-field">
