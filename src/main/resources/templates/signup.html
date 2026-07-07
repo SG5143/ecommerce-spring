@@ -23,12 +23,14 @@
 
         <div class="signup-field">
             <label for="signup-password">비밀번호</label>
-            <input type="password" id="signup-password" name="password" class="signup-input" placeholder="비밀번호" autocomplete="new-password"/>
+            <input type="password" id="signup-password" name="password" class="signup-input" placeholder="영문, 숫자, 특수문자(!@#$%^*+=.-) 중 2가지 이상 조합 8~20자" autocomplete="new-password"/>
+            <p id="signup-password-message" class="signup-field-message"></p>
         </div>
 
         <div class="signup-field">
             <label for="signup-password-confirm">비밀번호 확인</label>
-            <input type="password" id="signup-password-confirm" name="passwordConfirm" class="signup-input" placeholder="비밀번호 확인" autocomplete="new-password"/>
+            <input type="password" id="signup-password-confirm" name="passwordConfirm" class="signup-input" placeholder="" autocomplete="new-password"/>
+            <p id="signup-password-confirm-message" class="signup-field-message"></p>
         </div>
 
         <div class="signup-field">
