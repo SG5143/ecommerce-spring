@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
     <script th:src="@{/js/signup.js}" defer></script>
+    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
 </head>
 <body>
 <div th:replace="~{layout/header :: header}"></div>
@@ -18,19 +19,16 @@
         <div class="signup-field">
             <label for="signup-username">아이디</label>
             <input type="text" id="signup-username" name="username" class="signup-input" placeholder="아이디" autocomplete="username"/>
-            <p id="signup-username-message" class="signup-field-message"></p>
         </div>
 
         <div class="signup-field">
             <label for="signup-password">비밀번호</label>
             <input type="password" id="signup-password" name="password" class="signup-input" placeholder="영문, 숫자, 특수문자(!@#$%^*+=.-) 중 2가지 이상 조합 8~20자" autocomplete="new-password"/>
-            <p id="signup-password-message" class="signup-field-message"></p>
         </div>
 
         <div class="signup-field">
             <label for="signup-password-confirm">비밀번호 확인</label>
             <input type="password" id="signup-password-confirm" name="passwordConfirm" class="signup-input" placeholder="" autocomplete="new-password"/>
-            <p id="signup-password-confirm-message" class="signup-field-message"></p>
         </div>
 
         <div class="signup-field">
@@ -39,24 +37,24 @@
         </div>
 
         <div class="signup-field">
-            <label for="signup-phone">전화번호</label>
+            <label for="signup-phone">핸드폰</label>
             <div class="signup-input-row">
-                <input type="tel" id="signup-phone" name="phone" class="signup-input" placeholder="전화번호"/>
-                <button type="button" class="signup-inline-button not-implemented">본인확인</button>
+                <input type="tel" id="signup-phone" name="phone" class="signup-input" placeholder="본인확인 버튼을 통해 진행해주세요." readonly/>
+                <button type="button" id="signup-phone-verify-button" class="signup-inline-button">본인확인</button>
             </div>
         </div>
 
         <div class="signup-field">
             <label for="signup-zipcode">우편번호</label>
             <div class="signup-input-row">
-                <input type="text" id="signup-zipcode" name="zipcode" class="signup-input signup-input-zipcode" placeholder="우편번호"/>
-                <button type="button" class="signup-inline-button not-implemented">검색</button>
+                <input type="text" id="signup-zipcode" name="zipcode" class="signup-input signup-input-zipcode" placeholder="" readonly/>
+                <button type="button" id="signup-zipcode-search-button" class="signup-inline-button">검색</button>
             </div>
         </div>
 
         <div class="signup-field">
             <label for="signup-address">주소</label>
-            <input type="text" id="signup-address" name="address" class="signup-input" placeholder="주소"/>
+            <input type="text" id="signup-address" name="address" class="signup-input" placeholder="" readonly/>
 <!--            <label for="signup-address-detail">상세주소</label>-->
             <input type="text" id="signup-address-detail" name="addressDetail" class="signup-input" placeholder="상세주소"/>
         </div>
@@ -79,8 +77,76 @@
             </div>
         </div>
 
+        <div class="signup-terms">
+            <label class="terms-row terms-row-all">
+                <input type="checkbox" class="terms-checkbox" id="terms-all"/>
+                <span class="terms-checkbox-icon"></span>
+                <span class="terms-row-text">
+                    <strong>전체 동의</strong>
+                </span>
+            </label>
+
+            <label class="terms-row">
+                <input type="checkbox" class="terms-checkbox" id="terms-service" data-terms-group="required"/>
+                <span class="terms-checkbox-icon"></span>
+                <span class="terms-row-text">이용약관 동의</span>
+                <a th:href="@{/terms}" class="terms-detail-link not-implemented">자세히 보기</a>
+            </label>
+
+            <label class="terms-row">
+                <input type="checkbox" class="terms-checkbox" id="terms-privacy" data-terms-group="required"/>
+                <span class="terms-checkbox-icon"></span>
+                <span class="terms-row-text">개인정보 수집 및 이용 동의</span>
+                <a th:href="@{/privacy}" class="terms-detail-link not-implemented">자세히 보기</a>
+            </label>
+
+            <label class="terms-row">
+                <input type="checkbox" class="terms-checkbox" id="terms-age" data-terms-group="required"/>
+                <span class="terms-checkbox-icon"></span>
+                <span class="terms-row-text">(필수) 만 14세 이상입니다.</span>
+            </label>
+
+<!--            <label class="terms-row">-->
+<!--                <input type="checkbox" class="terms-checkbox" id="terms-marketing" data-terms-group="optional-parent"/>-->
+<!--                <span class="terms-checkbox-icon"></span>-->
+<!--                <span class="terms-row-text">-->
+<!--                    (선택) 마케팅 정보 수신에 동의합니다. (이메일 + SMS)-->
+<!--                </span>-->
+<!--            </label>-->
+
+<!--            <label class="terms-row terms-row-nested">-->
+<!--                <input type="checkbox" class="terms-checkbox" id="terms-marketing-email" data-terms-group="optional-child" data-terms-parent="terms-marketing"/>-->
+<!--                <span class="terms-checkbox-icon"></span>-->
+<!--                <span class="terms-row-text">이메일 수신 동의</span>-->
+<!--            </label>-->
+
+<!--            <label class="terms-row terms-row-nested">-->
+<!--                <input type="checkbox" class="terms-checkbox" id="terms-marketing-sms" data-terms-group="optional-child" data-terms-parent="terms-marketing"/>-->
+<!--                <span class="terms-checkbox-icon"></span>-->
+<!--                <span class="terms-row-text">SMS 수신 동의</span>-->
+<!--            </label>-->
+        </div>
+
         <button type="submit" class="signup-submit">회원가입</button>
     </form>
+
+    <div class="modal-overlay" id="phone-verify-overlay">
+        <div class="modal-box" role="dialog" aria-modal="true">
+            <button type="button" class="modal-close" id="phone-verify-close" aria-label="닫기">&times;</button>
+            <h2 class="modal-title">본인확인</h2>
+            <p class="modal-message">현재 개발 중인 기능입니다.<br/>전화번호 입력 시 임시로 등록됩니다.</p>
+            <input type="tel" id="phone-verify-input" class="signup-input" placeholder="010-1234-1234" inputmode="numeric" maxlength="13"/>
+            <button type="button" class="signup-submit" id="phone-verify-confirm">확인</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="zipcode-search-overlay">
+        <div class="modal-box modal-box-wide" role="dialog" aria-modal="true">
+            <button type="button" class="modal-close" id="zipcode-search-close" aria-label="닫기">&times;</button>
+            <h2 class="modal-title">우편번호 검색</h2>
+            <div id="zipcode-search-embed" class="zipcode-search-embed"></div>
+        </div>
+    </div>
 </main>
 
 <div th:replace="~{layout/footer :: footer}"></div>
