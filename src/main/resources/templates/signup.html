@@ -147,6 +147,14 @@
             <div id="zipcode-search-embed" class="zipcode-search-embed"></div>
         </div>
     </div>
+
+    <div class="modal-overlay" id="signup-result-overlay">
+        <div class="modal-box" role="dialog" aria-modal="true">
+            <button type="button" class="modal-close" id="signup-result-close" aria-label="닫기">&times;</button>
+            <h2 class="modal-title" id="signup-result-title"></h2>
+            <p class="modal-message modal-message-list" id="signup-result-message"></p>
+        </div>
+    </div>
 </main>
 
 <div th:replace="~{layout/footer :: footer}"></div>

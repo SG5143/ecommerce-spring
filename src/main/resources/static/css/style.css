@@ -214,6 +214,11 @@ button {
     color: #666;
 }
 
+.modal-message-list {
+    white-space: pre-line;
+    text-align: left;
+}
+
 .modal-box-wide {
     max-width: 600px;
 }

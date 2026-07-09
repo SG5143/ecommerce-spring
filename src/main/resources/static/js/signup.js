@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const usernameInput = document.getElementById('signup-username');
     let usernameMessage = null;
+    let isUsernameAvailable = false;
 
     if (usernameInput) {
         const DEBOUNCE_DELAY_MS = 400;
@@ -31,14 +32,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     return response.json();
                 })
                 .then(function (data) {
+                    isUsernameAvailable = data.passed;
                     usernameMessage = setFieldMessage(usernameInput, usernameMessage, data.msg, !data.passed);
                 })
                 .catch(function () {
+                    isUsernameAvailable = false;
                     usernameMessage = setFieldMessage(usernameInput, usernameMessage, '아이디 확인 중 오류가 발생했습니다.', true);
                 });
         }
 
         usernameInput.addEventListener('input', function () {
+            isUsernameAvailable = false;
             usernameMessage = setFieldMessage(usernameInput, usernameMessage, '', false);
 
             clearTimeout(debounceTimer);
@@ -233,6 +237,138 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             checkbox.addEventListener('change', updateTermsAll);
+        });
+    }
+
+    const signupForm = document.querySelector('.signup-form');
+    const resultOverlay = document.getElementById('signup-result-overlay');
+    const resultClose = document.getElementById('signup-result-close');
+    const resultTitle = document.getElementById('signup-result-title');
+    const resultMessage = document.getElementById('signup-result-message');
+
+    if (signupForm && resultOverlay && resultClose && resultTitle && resultMessage) {
+        function openResultModal(title, message) {
+            resultTitle.textContent = title;
+            resultMessage.textContent = message;
+            resultOverlay.classList.add('is-open');
+        }
+
+        function closeResultModal() {
+            resultOverlay.classList.remove('is-open');
+        }
+
+        resultClose.addEventListener('click', closeResultModal);
+        resultOverlay.addEventListener('click', function (event) {
+            if (event.target === resultOverlay) {
+                closeResultModal();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeResultModal();
+            }
+        });
+
+        const MINIMUM_AGE = 14;
+
+        function getValue(id) {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : '';
+        }
+
+        function getBirthdate() {
+            const year = Number(signupForm.elements['birthYear'].value);
+            const month = Number(signupForm.elements['birthMonth'].value);
+            const day = Number(signupForm.elements['birthDay'].value);
+
+            if (!year || !month || !day) {
+                return null;
+            }
+
+            const date = new Date(year, month - 1, day);
+            if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+                return null;
+            }
+            return date;
+        }
+
+        function isAtLeastMinimumAge(birthdate) {
+            const today = new Date();
+            let age = today.getFullYear() - birthdate.getFullYear();
+            const monthDiff = today.getMonth() - birthdate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthdate.getDate())) {
+                age -= 1;
+            }
+            return age >= MINIMUM_AGE;
+        }
+
+        function firstError() {
+            if (!getValue('signup-username')) {
+                return '아이디를 입력해주세요.';
+            }
+            if (!isUsernameAvailable) {
+                return '중복된 아이디입니다.';
+            }
+
+            const password = getValue('signup-password');
+            if (!password) {
+                return '비밀번호를 입력해주세요.';
+            }
+            if (!isPasswordValid(password)) {
+                return '비밀번호 형식을 확인해주세요.';
+            }
+
+            const passwordConfirm = getValue('signup-password-confirm');
+            if (!passwordConfirm) {
+                return '비밀번호 확인을 입력해주세요.';
+            }
+            if (password !== passwordConfirm) {
+                return '비밀번호가 일치하지 않습니다.';
+            }
+
+            if (!getValue('signup-name')) {
+                return '이름을 입력해주세요.';
+            }
+            if (!getValue('signup-phone')) {
+                return '핸드폰 본인확인을 진행해주세요.';
+            }
+            if (!getValue('signup-zipcode')) {
+                return '우편번호를 입력해주세요.';
+            }
+            if (!getValue('signup-address')) {
+                return '주소를 입력해주세요.';
+            }
+
+            const birthdate = getBirthdate();
+            if (!birthdate) {
+                return '생년월일을 정확히 선택해주세요.';
+            }
+            if (!isAtLeastMinimumAge(birthdate)) {
+                return '만 14세 이상만 가입할 수 있습니다.';
+            }
+
+            const requiredTerms = Array.from(document.querySelectorAll('[data-terms-group="required"]'));
+            const allTermsAgreed = requiredTerms.length > 0 && requiredTerms.every(function (checkbox) {
+                return checkbox.checked;
+            });
+            if (!allTermsAgreed) {
+                return '필수 약관에 모두 동의해주세요.';
+            }
+
+            return null;
+        }
+
+        signupForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            const error = firstError();
+            if (error) {
+                openResultModal('입력 정보를 확인해주세요', error);
+                return;
+            }
+
+            openResultModal('입력 완료', '모든 항목이 정상적으로 입력되었습니다.');
         });
     }
 });
