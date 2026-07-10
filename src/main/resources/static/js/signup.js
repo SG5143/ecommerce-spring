@@ -358,6 +358,33 @@ document.addEventListener('DOMContentLoaded', function () {
             return null;
         }
 
+        function isChecked(id) {
+            const el = document.getElementById(id);
+            return !!(el && el.checked);
+        }
+
+        function buildSignupPayload() {
+            return {
+                username: getValue('signup-username'),
+                password: getValue('signup-password'),
+                passwordConfirm: getValue('signup-password-confirm'),
+                name: getValue('signup-name'),
+                phone: getValue('signup-phone'),
+                zipcode: getValue('signup-zipcode'),
+                address: getValue('signup-address'),
+                addressDetail: getValue('signup-address-detail'),
+                birthYear: Number(signupForm.elements['birthYear'].value),
+                birthMonth: Number(signupForm.elements['birthMonth'].value),
+                birthDay: Number(signupForm.elements['birthDay'].value),
+                termsAgreed: isChecked('terms-service'),
+                privacyAgreed: isChecked('terms-privacy'),
+                ageAgreed: isChecked('terms-age'),
+                marketingAgreed: isChecked('terms-marketing')
+            };
+        }
+
+        const submitButton = signupForm.querySelector('.signup-submit');
+
         signupForm.addEventListener('submit', function (event) {
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -368,7 +395,44 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            openResultModal('입력 완료', '모든 항목이 정상적으로 입력되었습니다.');
+            if (submitButton) {
+                submitButton.disabled = true;
+            }
+
+            fetch('/api/v1/members', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(buildSignupPayload())
+            })
+                .then(function (response) {
+                    return response.json().catch(function () {
+                        return {};
+                    }).then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (result.ok) {
+                        openResultModal('회원가입 완료', '회원가입이 완료되었습니다.');
+                        setTimeout(function () {
+                            window.location.href = '/login';
+                        }, 1000);
+                        return;
+                    }
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                    }
+                    const message = result.data && result.data.message
+                        ? result.data.message
+                        : '회원가입에 실패했습니다. 입력 정보를 확인해주세요.';
+                    openResultModal('회원가입 실패', message);
+                })
+                .catch(function () {
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                    }
+                    openResultModal('오류', '회원가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+                });
         });
     }
 });
