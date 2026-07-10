@@ -40,3 +40,7 @@ out/
 application-local.yml
 application-local.yaml
 application-local.properties
+
+### Load testing ###
+.venv-locust/
+loadtest/results/
