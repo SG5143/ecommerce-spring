@@ -3,3 +3,16 @@ spring:
     name: Mingler
   profiles:
     active: local
+
+  # 아래는 예시 설정입니다.
+  # 로컬에서 실행할 때는 이 파일을 복사해 application-local.yml 을 만들고
+  # 본인 환경에 맞게 값을 수정하세요. (application-local.yml 은 git 에 올라가지 않습니다.)
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: "jdbc:mysql://localhost:3306/mingler?serverTimezone=Asia/Seoul"
+    username: your-db-username
+    password: your-db-password
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
