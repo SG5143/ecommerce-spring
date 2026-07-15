@@ -437,6 +437,16 @@ button {
     font-size: 14px;
 }
 
+.login-message {
+    margin: 4px 0 0;
+    font-size: 13px;
+    min-height: 16px;
+}
+
+.login-message.is-error {
+    color: #c62828;
+}
+
 .login-submit {
     width: 100%;
     padding: 16px;

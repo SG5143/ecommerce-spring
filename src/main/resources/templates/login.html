@@ -6,6 +6,8 @@
     <title>로그인 - Mingler</title>
     <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/api.js}" defer></script>
+    <script th:src="@{/js/login.js}" defer></script>
 </head>
 <body>
 <div th:replace="~{layout/header :: header}"></div>
@@ -13,9 +15,10 @@
 <main class="login-page">
     <h1 class="login-title">로그인</h1>
 
-    <form class="login-form not-implemented">
+    <form class="login-form">
         <input type="text" name="username" class="login-input" placeholder="아이디" autocomplete="username"/>
         <input type="password" name="password" class="login-input" placeholder="비밀번호" autocomplete="current-password"/>
+        <p class="login-message" role="alert" aria-live="polite"></p>
         <button type="submit" class="login-submit">로그인</button>
     </form>
 
