@@ -73,6 +73,12 @@ public class Member {
     @Column(name = "privacy_agreed_at", nullable = false)
     private LocalDateTime privacyAgreedAt;
 
+    @Column(name = "login_fail_count", nullable = false)
+    private Integer loginFailCount;
+
+    @Column(name = "account_locked_until")
+    private LocalDateTime accountLockedUntil;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
@@ -101,10 +107,44 @@ public class Member {
         this.status = "ACTIVE";
         this.grade = "BRONZE";
         this.pointBalance = 0;
+        this.loginFailCount = 0;
         this.marketingAgreed = marketingAgreed != null && marketingAgreed;
         this.marketingAgreedAt = marketingAgreedAt;
         this.termsAgreedAt = termsAgreedAt;
         this.privacyAgreedAt = privacyAgreedAt;
+    }
+
+    /** 계정이 현재 잠겨 있는지 여부 (잠금 해제 시각이 미래면 잠김) */
+    public boolean isLocked() {
+        return accountLockedUntil != null && accountLockedUntil.isAfter(LocalDateTime.now());
+    }
+
+    /** 회원 상태가 정상(ACTIVE)이라 로그인 가능한지 여부 */
+    public boolean isActive() {
+        return "ACTIVE".equals(status);
+    }
+
+    /**
+     * 로그인 실패를 1회 누적하고, 임계치 이상이면 지정 시간 동안 계정을 잠금
+     * @param maxFailCount 잠금이 시작되는 실패 임계치
+     * @param lockMinutes  잠금 지속 시간(분)
+     */
+    public void recordLoginFailure(int maxFailCount, long lockMinutes) {
+        this.loginFailCount = (this.loginFailCount == null ? 0 : this.loginFailCount) + 1;
+        if (this.loginFailCount >= maxFailCount) {
+            this.accountLockedUntil = LocalDateTime.now().plusMinutes(lockMinutes);
+        }
+    }
+
+    /** 로그인 성공 시 실패 카운트와 잠금 상태를 초기화 */
+    public void resetLoginFailure() {
+        this.loginFailCount = 0;
+        this.accountLockedUntil = null;
+    }
+
+    /** 최근 로그인 시각을 현재 시각으로 갱신 */
+    public void updateLastLoginAt() {
+        this.lastLoginAt = LocalDateTime.now();
     }
 
 }
