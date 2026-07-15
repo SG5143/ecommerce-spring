@@ -1,44 +1,70 @@
-CREATE TABLE `member` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '회원 고유 식별자',
-    `username` VARCHAR(50) NOT NULL COMMENT '로그인 아이디',
-    `password` VARCHAR(255) NOT NULL COMMENT '비밀번호',
-    `name` VARCHAR(50) NOT NULL COMMENT '실명',
-    `phone` VARCHAR(20) NOT NULL COMMENT '휴대폰 번호 (본인확인 대상, 하이픈 제외 숫자만 저장 권장)',
-    `phone_verified_at` DATETIME NULL COMMENT '휴대폰 본인확인 완료 시각 (미인증 시 NULL, 가입폼의 "본인확인" 버튼과 연계 예정)',
-    `birth_date` DATE NOT NULL COMMENT '생년월일 (가입폼의 년/월/일 select 3개 값을 하나의 DATE로 합쳐 저장)',
-    `provider` VARCHAR(20) NOT NULL DEFAULT 'LOCAL' COMMENT '가입 경로: LOCAL, KAKAO, NAVER (소셜 로그인은 로그인 화면에 버튼만 있고 미구현 상태 - 컬럼만 우선 예약)',
-    `provider_id` VARCHAR(100) NULL COMMENT '소셜 로그인 제공자 측 고유 사용자 ID (LOCAL 가입 시 NULL)',
-    `role` VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '권한 구분: USER, ADMIN',
-    `status` VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '회원 상태: ACTIVE(정상), DORMANT(휴면), SUSPENDED(정지), WITHDRAWN(탈퇴)',
-    `grade` VARCHAR(20) NOT NULL DEFAULT 'BRONZE' COMMENT '커머스 등급 (구매 실적 기반 혜택 차등, 예: BRONZE/SILVER/GOLD/VIP)',
-    `point_balance` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '보유 적립금(원 단위) - 가입 축하 적립금 등 커머스 프로모션에 사용',
-    `marketing_agreed` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '마케팅 정보 수신 동의 여부 (전자상거래법상 필수/선택 항목 구분 필요)',
-    `marketing_agreed_at` DATETIME NULL COMMENT '마케팅 수신 동의 시각',
-    `terms_agreed_at` DATETIME NOT NULL COMMENT '이용약관 동의 시각 (법적 동의 이력 보관 목적)',
-    `privacy_agreed_at` DATETIME NOT NULL COMMENT '개인정보 처리방침 동의 시각 (법적 동의 이력 보관 목적)',
-    `last_login_at` DATETIME NULL COMMENT '최근 로그인 시각',
-    `withdrawn_at` DATETIME NULL COMMENT '회원 탈퇴(소프트 삭제) 시각 - 주문/결제 이력과의 참조 무결성 보존을 위해 물리 삭제 대신 사용',
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '가입일시',
-    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '정보 수정일시',
+-- mingler.`member` definition
+
+CREATE TABLE `member`
+(
+    `id`                   bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '고유식별자',
+    `username`             varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '아이디',
+    `password`             varchar(255) COLLATE utf8mb4_unicode_ci                      NOT NULL COMMENT '비밀번호',
+    `name`                 varchar(50) COLLATE utf8mb4_unicode_ci                       NOT NULL COMMENT '실명',
+    `phone`                varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '휴대폰',
+    `phone_verified_at`    datetime                                                              DEFAULT NULL COMMENT '휴대폰 본인확인 완료일시 (미인증 시 NULL)',
+    `birth_date`           date                                                         NOT NULL COMMENT '생년월일',
+    `provider`             varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'LOCAL' COMMENT '가입경로',
+    `provider_id`          varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci         DEFAULT NULL COMMENT '소셜 로그인 고유 사용자 ID',
+    `role`                 varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'USER' COMMENT '권한구분',
+    `status`               varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ACTIVE' COMMENT '회원상태',
+    `grade`                varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'BRONZE' COMMENT '등급',
+    `point_balance`        int unsigned NOT NULL DEFAULT '0' COMMENT '보유적립금',
+    `marketing_agreed`     tinyint(1) NOT NULL DEFAULT '0' COMMENT '마케팅 정보 수신 동의 여부',
+    `marketing_agreed_at`  datetime                                                              DEFAULT NULL COMMENT '마케팅 수신 동의 시각',
+    `terms_agreed_at`      datetime                                                     NOT NULL COMMENT '이용약관 동의 시각',
+    `privacy_agreed_at`    datetime                                                     NOT NULL COMMENT '개인정보 처리방침 동의 시각',
+    `login_fail_count`     int unsigned NOT NULL DEFAULT '0' COMMENT '연속 로그인 실패횟수',
+    `account_locked_until` datetime                                                              DEFAULT NULL COMMENT '잠금 해제일시',
+    `last_login_at`        datetime                                                              DEFAULT NULL COMMENT '최근 로그인 일시',
+    `withdrawn_at`         datetime                                                              DEFAULT NULL COMMENT '탈퇴시각',
+    `created_at`           datetime                                                     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '가입일시',
+    `updated_at`           datetime                                                     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_member_username` (`username`),
     UNIQUE KEY `uk_member_phone` (`phone`),
-    UNIQUE KEY `uk_member_provider_provider_id` (`provider`, `provider_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='회원 정보';
+    UNIQUE KEY `uk_member_provider_provider_id` (`provider`,`provider_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='회원 정보';
 
-CREATE TABLE `member_address` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '배송지 고유 식별자',
-    `member_id` BIGINT UNSIGNED NOT NULL COMMENT '소유 회원 ID (member.id 참조)',
-    `alias` VARCHAR(50) NULL COMMENT '배송지 별칭 (예: 우리집, 회사)',
-    `receiver_name` VARCHAR(50) NOT NULL COMMENT '수령인 이름 (회원 본인과 다를 수 있음)',
-    `receiver_phone` VARCHAR(20) NOT NULL COMMENT '수령인 연락처',
-    `zipcode` VARCHAR(10) NOT NULL COMMENT '우편번호',
-    `address` VARCHAR(255) NOT NULL COMMENT '기본 주소',
-    `address_detail` VARCHAR(255) NULL COMMENT '상세 주소',
-    `is_default` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '기본 배송지 여부',
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
-    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+
+-- mingler.member_address definition
+
+CREATE TABLE `member_address`
+(
+    `id`             bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '고유식별자',
+    `member_id`      bigint unsigned NOT NULL COMMENT '소유회원',
+    `alias`          varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci           DEFAULT NULL COMMENT '배송지별칭',
+    `receiver_name`  varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci  NOT NULL COMMENT '수령인명',
+    `receiver_phone` varchar(20) COLLATE utf8mb4_unicode_ci                        NOT NULL COMMENT '수령인 연락처',
+    `zipcode`        varchar(10) COLLATE utf8mb4_unicode_ci                        NOT NULL COMMENT '우편번호',
+    `address`        varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '기본주소',
+    `address_detail` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci          DEFAULT NULL COMMENT '상세주소',
+    `is_default`     tinyint(1) NOT NULL DEFAULT '0' COMMENT '기본 배송지 여부',
+    `created_at`     datetime                                                      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
+    `updated_at`     datetime                                                      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     PRIMARY KEY (`id`),
-    KEY `idx_member_address_member_id` (`member_id`),
+    KEY              `idx_member_address_member_id` (`member_id`),
     CONSTRAINT `fk_member_address_member` FOREIGN KEY (`member_id`) REFERENCES `member` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='회원 배송지 정보';
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='회원 배송지 정보';
+
+
+-- mingler.refresh_token definition
+
+CREATE TABLE `refresh_token`
+(
+    `id`         bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '고유식별자',
+    `member_id`  bigint unsigned NOT NULL COMMENT '소유회원',
+    `token_hash` char(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Refresh 토큰 원문의 SHA-256 hex',
+    `expires_at` datetime                            NOT NULL COMMENT '만료일시',
+    `revoked_at` datetime                                     DEFAULT NULL COMMENT '폐기일시',
+    `created_at` datetime                            NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '발급일시',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_refresh_token_hash` (`token_hash`),
+    KEY          `idx_refresh_token_member` (`member_id`),
+    CONSTRAINT `fk_refresh_token_member` FOREIGN KEY (`member_id`) REFERENCES `member` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Refresh 토큰 (회전형, 재사용 탐지)';
