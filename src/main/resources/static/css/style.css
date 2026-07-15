@@ -524,6 +524,121 @@ button {
     box-sizing: border-box;
 }
 
+/* MyShop page */
+.myshop-page {
+    width: min(92%, 1000px);
+    margin: 0 auto;
+    padding: 40px 0 150px;
+}
+
+.myshop-layout {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+}
+
+.myshop-aside {
+    flex: 0 0 200px;
+}
+
+.myshop-aside-title {
+    margin: 0 0 16px;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.myshop-nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.myshop-nav a {
+    display: block;
+    padding: 12px 8px;
+    border-bottom: 1px solid #eee;
+    font-size: 15px;
+    color: #333;
+}
+
+.myshop-nav a.is-active {
+    font-weight: 700;
+    color: #111;
+}
+
+.myshop-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.myshop-content-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.myshop-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.myshop-greeting {
+    margin: 0 0 16px;
+    font-size: 14px;
+    color: #666;
+}
+
+.myshop-logout {
+    padding: 10px 20px;
+    border: 1px solid #111;
+    background-color: #fff;
+    color: #111;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.myshop-panel {
+    margin-bottom: 24px;
+    padding: 24px;
+    border: 1px solid #eee;
+}
+
+.myshop-panel-title {
+    margin: 0 0 16px;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.myshop-stats {
+    display: flex;
+    gap: 16px;
+    margin: 0;
+}
+
+.myshop-stat {
+    flex: 1;
+    padding: 16px;
+    background-color: #fafafa;
+    text-align: center;
+}
+
+.myshop-stat dt {
+    font-size: 13px;
+    color: #888;
+}
+
+.myshop-stat dd {
+    margin: 8px 0 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #111;
+}
+
 /* Signup page */
 .signup-page {
     width: min(92%, 480px);
@@ -797,5 +912,15 @@ button {
     .footer-bottom {
         justify-content: flex-start;
         flex-wrap: wrap;
+    }
+
+    .myshop-layout {
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .myshop-aside {
+        flex: none;
+        width: 100%;
     }
 }

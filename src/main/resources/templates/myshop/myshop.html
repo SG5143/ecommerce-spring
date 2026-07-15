@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Mingler | 마이샵</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/api.js}" defer></script>
+    <script th:src="@{/js/myshop.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="myshop-page">
+    <div class="myshop-layout">
+        <div th:replace="~{layout/myshop-nav :: nav(null)}"></div>
+
+        <section class="myshop-content">
+            <div class="myshop-content-head">
+                <h1 class="myshop-title">Hello, <strong id="myshop-name">-</strong></h1>
+                <button type="button" id="myshop-logout" class="myshop-logout">로그아웃</button>
+            </div>
+
+            <!-- 내정보: 이름, 회원등급, 총 구매 금액 -->
+            <section class="myshop-panel">
+                <h2 class="myshop-panel-title">내정보</h2>
+                <dl class="myshop-stats">
+                    <div class="myshop-stat">
+                        <dt>회원등급</dt>
+                        <dd id="myshop-grade">-</dd>
+                    </div>
+                    <div class="myshop-stat">
+                        <dt>총 구매 금액</dt>
+                        <dd id="myshop-total-purchase">-</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <!-- 내 지갑: 적립금, 쿠폰 -->
+            <section class="myshop-panel">
+                <h2 class="myshop-panel-title">내 지갑</h2>
+                <dl class="myshop-stats">
+                    <div class="myshop-stat">
+                        <dt>적립금</dt>
+                        <dd id="myshop-points">-</dd>
+                    </div>
+                    <div class="myshop-stat">
+                        <dt>쿠폰</dt>
+                        <dd id="myshop-coupons">-</dd>
+                    </div>
+                </dl>
+            </section>
+        </section>
+    </div>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>

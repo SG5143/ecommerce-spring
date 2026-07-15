@@ -34,7 +34,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // SSR 페이지 & 정적 리소스
-                        .requestMatchers("/", "/login", "/signup", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/", "/login", "/signup", "/myshop", "/myshop/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        // 회원 본인 정보는 인증 필요
+                        .requestMatchers("/api/v1/members/me").authenticated()
                         // 인증 불필요 API: 회원가입/아이디 중복확인, 로그인/재발급/로그아웃
                         .requestMatchers("/api/v1/members/**").permitAll()
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/reissue", "/api/v1/auth/logout").permitAll()

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  마이샵 공유 사이드바
+  마이샵 본체 및 모든 서브 페이지가 재사용. active 파라미터로 현재 메뉴를 강조
+  아직 구현하지 않은 메뉴는 not-implemented 로 두어 클릭 시 "서비스 준비 중" 모달로 접근제한
+-->
+<aside class="myshop-aside" th:fragment="nav(active)">
+    <h2 class="myshop-aside-title">마이샵</h2>
+    <nav class="myshop-nav">
+        <ul>
+            <li>
+                <a th:href="@{/myshop/member-info}" class="not-implemented"
+                   th:classappend="${active == 'member-info'} ? ' is-active'">회원정보</a>
+            </li>
+            <li>
+                <a th:href="@{/myshop/orders}" class="not-implemented"
+                   th:classappend="${active == 'orders'} ? ' is-active'">주문내역</a>
+            </li>
+            <li>
+                <a th:href="@{/myshop/points}" class="not-implemented"
+                   th:classappend="${active == 'points'} ? ' is-active'">적립금</a>
+            </li>
+            <li>
+                <a th:href="@{/myshop/coupons}" class="not-implemented"
+                   th:classappend="${active == 'coupons'} ? ' is-active'">쿠폰</a>
+            </li>
+            <li>
+                <a th:href="@{/myshop/inquiry}" class="not-implemented"
+                   th:classappend="${active == 'inquiry'} ? ' is-active'">1:1문의</a>
+            </li>
+            <li>
+                <a th:href="@{/myshop/recent}" class="not-implemented"
+                   th:classappend="${active == 'recent'} ? ' is-active'">최근 본 상품</a>
+            </li>
+        </ul>
+    </nav>
+</aside>
+</body>
+</html>

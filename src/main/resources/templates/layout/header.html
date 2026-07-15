@@ -19,7 +19,7 @@
             <a th:href="@{/search}" class="icon-link not-implemented" aria-label="검색">
                 <img th:src="@{/images/icons/sch-b.svg}" alt="검색"/>
             </a>
-            <a th:href="@{/login}" class="icon-link" aria-label="마이페이지">
+            <a th:href="@{/login}" id="header-my-link" class="icon-link" aria-label="마이페이지">
                 <img th:src="@{/images/icons/my-b.svg}" alt="마이페이지"/>
             </a>
             <a th:href="@{/cart}" class="icon-link not-implemented" aria-label="장바구니">
@@ -39,6 +39,7 @@
     </nav>
 
     <script th:src="@{/js/header.js}" defer></script>
+    <script th:src="@{/js/auth-ui.js}" defer></script>
 </header>
 </body>
 </html>
