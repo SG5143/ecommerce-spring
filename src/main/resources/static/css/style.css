@@ -534,17 +534,16 @@ button {
 .myshop-layout {
     display: flex;
     gap: 40px;
-    align-items: flex-start;
+    align-items: stretch;
 }
 
 .myshop-aside {
     flex: 0 0 200px;
-}
-
-.myshop-aside-title {
-    margin: 0 0 16px;
-    font-size: 20px;
-    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding-right: 24px;
+    border-right: 1px solid #eee;
 }
 
 .myshop-nav ul {
@@ -557,15 +556,20 @@ button {
 
 .myshop-nav a {
     display: block;
-    padding: 12px 8px;
-    border-bottom: 1px solid #eee;
+    padding: 10px 8px;
+    /*border-bottom: 1px solid #eee;*/
     font-size: 15px;
-    color: #333;
+    color: #999;
 }
 
 .myshop-nav a.is-active {
     font-weight: 700;
     color: #111;
+}
+
+.myshop-nav a:hover,
+.myshop-logout:hover {
+    color: #ff5722;
 }
 
 .myshop-content {
@@ -593,12 +597,16 @@ button {
 }
 
 .myshop-logout {
-    padding: 10px 20px;
-    border: 1px solid #111;
-    background-color: #fff;
-    color: #111;
-    font-size: 13px;
-    font-weight: 700;
+    display: block;
+    width: 100%;
+    padding: 12px 8px;
+    border: none;
+    /*border-bottom: 1px solid #eee;*/
+    background: none;
+    font-family: inherit;
+    font-size: 15px;
+    text-align: left;
+    color: #999;
     cursor: pointer;
 }
 
@@ -922,5 +930,9 @@ button {
     .myshop-aside {
         flex: none;
         width: 100%;
+        padding-right: 0;
+        padding-bottom: 16px;
+        border-right: none;
+        border-bottom: 1px solid #eee;
     }
 }

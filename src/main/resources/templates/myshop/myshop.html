@@ -14,12 +14,11 @@
 
 <main class="myshop-page">
     <div class="myshop-layout">
-        <div th:replace="~{layout/myshop-nav :: nav(null)}"></div>
+        <div th:replace="~{layout/myshop-nav :: nav('home')}"></div>
 
         <section class="myshop-content">
             <div class="myshop-content-head">
-                <h1 class="myshop-title">Hello, <strong id="myshop-name">-</strong></h1>
-                <button type="button" id="myshop-logout" class="myshop-logout">로그아웃</button>
+                <h1 class="myshop-title">안녕하세요, <strong id="myshop-name">-</strong>님</h1>
             </div>
 
             <!-- 내정보: 이름, 회원등급, 총 구매 금액 -->

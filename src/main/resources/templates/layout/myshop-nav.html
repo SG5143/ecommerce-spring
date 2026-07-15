@@ -7,9 +7,12 @@
   아직 구현하지 않은 메뉴는 not-implemented 로 두어 클릭 시 "서비스 준비 중" 모달로 접근제한
 -->
 <aside class="myshop-aside" th:fragment="nav(active)">
-    <h2 class="myshop-aside-title">마이샵</h2>
     <nav class="myshop-nav">
         <ul>
+            <li>
+                <a th:href="@{/myshop}"
+                   th:classappend="${active == 'home'} ? ' is-active'">마이샵</a>
+            </li>
             <li>
                 <a th:href="@{/myshop/member-info}" class="not-implemented"
                    th:classappend="${active == 'member-info'} ? ' is-active'">회원정보</a>
@@ -33,6 +36,9 @@
             <li>
                 <a th:href="@{/myshop/recent}" class="not-implemented"
                    th:classappend="${active == 'recent'} ? ' is-active'">최근 본 상품</a>
+            </li>
+            <li>
+                <button type="button" id="myshop-logout" class="myshop-logout">로그아웃</button>
             </li>
         </ul>
     </nav>
