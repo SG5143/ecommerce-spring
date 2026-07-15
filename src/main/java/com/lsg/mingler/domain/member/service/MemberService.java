@@ -4,8 +4,10 @@ import com.lsg.mingler.domain.member.dao.MemberAddressRepository;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
 import com.lsg.mingler.domain.member.dto.MemberSignupRequest;
+import com.lsg.mingler.domain.member.dto.MemberSummaryResponse;
 import com.lsg.mingler.domain.member.entity.Member;
 import com.lsg.mingler.domain.member.entity.MemberAddress;
+import com.lsg.mingler.global.error.AuthenticationException;
 import com.lsg.mingler.global.error.DuplicateException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -47,6 +49,24 @@ public class MemberService {
                 : memberId + "는 사용중인 아이디 입니다.";
 
         return new MemberCheckIdResponse(msg, passed);
+    }
+
+    /**
+     * 마이샵 요약 정보 조회. 유효한 토큰이지만 회원이 없으면 인증 오류로 간주
+     * 총 구매 금액·쿠폰 수는 주문·쿠폰 도메인 미구현이라 0 으로 반환
+     */
+    @Transactional(readOnly = true)
+    public MemberSummaryResponse getSummary(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
+
+        return new MemberSummaryResponse(
+                member.getName(),
+                member.getGrade(),
+                0L,
+                member.getPointBalance(),
+                0
+        );
     }
 
     @Transactional
