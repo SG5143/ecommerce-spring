@@ -3,6 +3,7 @@ package com.lsg.mingler.domain.member.service;
 import com.lsg.mingler.domain.member.dao.MemberAddressRepository;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
+import com.lsg.mingler.domain.member.dto.MemberDetailResponse;
 import com.lsg.mingler.domain.member.dto.MemberSignupRequest;
 import com.lsg.mingler.domain.member.dto.MemberSummaryResponse;
 import com.lsg.mingler.domain.member.entity.Member;
@@ -66,6 +67,28 @@ public class MemberService {
                 0L,
                 member.getPointBalance(),
                 0
+        );
+    }
+
+    /**
+     * 회원정보 수정 페이지용 상세 조회. 기본 배송지가 없으면 주소 필드는 null 로 내려감
+     */
+    @Transactional(readOnly = true)
+    public MemberDetailResponse getDetail(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
+
+        MemberAddress address = memberAddressRepository.findByMemberIdAndIsDefaultTrue(memberId).orElse(null);
+
+        return new MemberDetailResponse(
+                member.getUsername(),
+                member.getName(),
+                member.getPhone(),
+                member.getBirthDate() != null ? member.getBirthDate().toString() : null,
+                address != null ? address.getZipcode() : null,
+                address != null ? address.getAddress() : null,
+                address != null ? address.getAddressDetail() : null,
+                Boolean.TRUE.equals(member.getMarketingAgreed())
         );
     }
 

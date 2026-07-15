@@ -1,6 +1,7 @@
 package com.lsg.mingler.domain.member.api;
 
 import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
+import com.lsg.mingler.domain.member.dto.MemberDetailResponse;
 import com.lsg.mingler.domain.member.dto.MemberSignupRequest;
 import com.lsg.mingler.domain.member.dto.MemberSignupResponse;
 import com.lsg.mingler.domain.member.dto.MemberSummaryResponse;
@@ -38,6 +39,14 @@ public class MemberApiController {
     @GetMapping("/me")
     public ResponseEntity<MemberSummaryResponse> me(@AuthenticationPrincipal Long memberId) {
         return ResponseEntity.ok(memberService.getSummary(memberId));
+    }
+
+    /**
+     * 회원정보 수정 페이지용 상세 정보, 인증된 회원 본인만 접근 가능
+     */
+    @GetMapping("/me/detail")
+    public ResponseEntity<MemberDetailResponse> myDetail(@AuthenticationPrincipal Long memberId) {
+        return ResponseEntity.ok(memberService.getDetail(memberId));
     }
 
     /**
