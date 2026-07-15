@@ -43,4 +43,9 @@ application-local.properties
 
 ### Load testing ###
 .venv-locust/
+loadtest/locustfile.py
 loadtest/results/
+loadtest/__pycache__/
+
+### Claude 지침과 이력들 ###
+.claude/
