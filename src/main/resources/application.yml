@@ -16,3 +16,10 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+
+# JWT 설정 (실제 secret 값은 application-local.yml 에 두고 git 에 올리지 않는다)
+# secret 은 HS256 서명용 256bit 이상 Base64 문자열이어야 한다.
+jwt:
+  secret: "change-me-to-a-base64-encoded-256bit-secret-key-value-here=="
+  access-token-validity: PT30M   # Access 토큰 수명 (짧게 유지해 탈취 피해 최소화)
+  refresh-token-validity: P14D   # Refresh 토큰 수명
