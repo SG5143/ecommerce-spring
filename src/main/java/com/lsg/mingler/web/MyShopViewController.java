@@ -11,8 +11,9 @@ public class MyShopViewController {
         return "myshop/myshop";
     }
 
-    // 서브 페이지는 구현할 때마다 아래처럼 하나씩 추가
-    // @GetMapping("/myshop/member-info")
-    // public String memberInfo() { return "myshop/member-info"; }
+    @GetMapping("/myshop/member-info")
+    public String memberInfo() {
+        return "myshop/member-info";
+    }
 
 }

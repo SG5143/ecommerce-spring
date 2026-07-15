@@ -647,6 +647,115 @@ button {
     color: #111;
 }
 
+/* MyShop - 회원정보 수정 폼 (라벨-입력창 수평 배치) */
+.member-info-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 560px;
+}
+
+.member-info-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.member-info-row > label {
+    flex: 0 0 120px;
+    font-size: 14px;
+    color: #333;
+}
+
+.member-info-input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+}
+
+.member-info-input[readonly] {
+    background-color: #f5f5f5;
+    color: #888;
+}
+
+.member-info-inline {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 8px;
+}
+
+.member-info-group {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 휴대폰·생년월일 칸은 가로 전체를 채우지 않고 콘텐츠 폭 + 축소된 좌우 패딩 */
+.member-info-group .member-info-input {
+    flex: 0 0 auto;
+    width: 4.25rem;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+.member-info-group .member-info-input[maxlength="3"] {
+    width: 3.75rem;
+}
+
+.member-info-group .member-info-input[maxlength="2"] {
+    width: 3.25rem;
+}
+
+.member-info-sep {
+    color: #bbb;
+}
+
+.member-info-unit {
+    flex: 0 0 auto;
+    font-size: 14px;
+    color: #666;
+}
+
+.member-info-inline-btn {
+    flex: 0 0 auto;
+    align-self: stretch;
+    padding: 0 16px;
+    border: 1px solid #111;
+    background-color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.member-info-radio-group {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.member-info-divider {
+    margin: 8px 0;
+    border: none;
+    border-top: 1px solid #eee;
+}
+
+.member-info-submit {
+    align-self: flex-start;
+    margin-top: 8px;
+    padding: 12px 32px;
+    border: none;
+    background-color: #111;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
 /* Signup page */
 .signup-page {
     width: min(92%, 480px);
@@ -934,5 +1043,15 @@ button {
         padding-bottom: 16px;
         border-right: none;
         border-bottom: 1px solid #eee;
+    }
+
+    .member-info-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .member-info-row > label {
+        flex: none;
     }
 }

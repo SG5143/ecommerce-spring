@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Mingler | 회원정보</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/api.js}" defer></script>
+    <script th:src="@{/js/member-info.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="myshop-page">
+    <div class="myshop-layout">
+        <div th:replace="~{layout/myshop-nav :: nav('member-info')}"></div>
+
+        <section class="myshop-content">
+            <div class="myshop-content-head">
+                <h1 class="myshop-title">회원정보</h1>
+            </div>
+
+            <form class="member-info-form" id="member-info-form">
+                <!-- 아이디: 수정 불가 -->
+                <div class="member-info-row">
+                    <label for="mi-username">아이디</label>
+                    <input type="text" id="mi-username" name="username" class="member-info-input" readonly/>
+                </div>
+
+                <div class="member-info-row">
+                    <label for="mi-name">이름</label>
+                    <input type="text" id="mi-name" name="name" class="member-info-input"/>
+                </div>
+
+                <div class="member-info-row">
+                    <label for="mi-phone1">휴대폰</label>
+                    <div class="member-info-group">
+                        <input type="tel" id="mi-phone1" name="phone1" class="member-info-input" maxlength="3" inputmode="numeric" readonly/>
+                        <span class="member-info-sep">-</span>
+                        <input type="tel" id="mi-phone2" name="phone2" class="member-info-input" maxlength="4" inputmode="numeric" readonly/>
+                        <span class="member-info-sep">-</span>
+                        <input type="tel" id="mi-phone3" name="phone3" class="member-info-input" maxlength="4" inputmode="numeric" readonly/>
+                        <button type="button" class="member-info-inline-btn not-implemented">번호수정</button>
+                    </div>
+                </div>
+
+                <div class="member-info-row">
+                    <label for="mi-zipcode">우편번호</label>
+                    <div class="member-info-inline">
+                        <input type="text" id="mi-zipcode" name="zipcode" class="member-info-input" readonly/>
+                        <button type="button" class="member-info-inline-btn not-implemented">검색</button>
+                    </div>
+                </div>
+
+                <div class="member-info-row">
+                    <label for="mi-address">기본주소</label>
+                    <input type="text" id="mi-address" name="address" class="member-info-input" readonly/>
+                </div>
+
+                <div class="member-info-row">
+                    <label for="mi-address-detail">상세주소</label>
+                    <input type="text" id="mi-address-detail" name="addressDetail" class="member-info-input" placeholder="상세주소"/>
+                </div>
+
+                <!-- 생년월일: 선택박스가 아닌 직접 입력 (연·월·일 3칸) -->
+                <div class="member-info-row">
+                    <label for="mi-birth-year">생년월일</label>
+                    <div class="member-info-group">
+                        <input type="text" id="mi-birth-year" name="birthYear" class="member-info-input" placeholder="YYYY" maxlength="4" inputmode="numeric"/>
+                        <span class="member-info-unit">년</span>
+                        <input type="text" id="mi-birth-month" name="birthMonth" class="member-info-input" placeholder="MM" maxlength="2" inputmode="numeric"/>
+                        <span class="member-info-unit">월</span>
+                        <input type="text" id="mi-birth-day" name="birthDay" class="member-info-input" placeholder="DD" maxlength="2" inputmode="numeric"/>
+                        <span class="member-info-unit">일</span>
+                    </div>
+                </div>
+
+                <div class="member-info-row">
+                    <label>마케팅 수신동의</label>
+                    <div class="member-info-radio-group">
+                        <label class="terms-row">
+                            <input type="radio" class="terms-checkbox" name="marketingAgreed" value="true" id="mi-marketing-yes"/>
+                            <span class="terms-checkbox-icon"></span>
+                            <span class="terms-row-text">동의함</span>
+                        </label>
+                        <label class="terms-row">
+                            <input type="radio" class="terms-checkbox" name="marketingAgreed" value="false" id="mi-marketing-no"/>
+                            <span class="terms-checkbox-icon"></span>
+                            <span class="terms-row-text">동의안함</span>
+                        </label>
+                    </div>
+                </div>
+
+                <hr class="member-info-divider"/>
+
+                <div class="member-info-row">
+                    <label for="mi-current-password">현재 비밀번호</label>
+                    <input type="password" id="mi-current-password" name="currentPassword" class="member-info-input" placeholder="비밀번호 변경 시 입력" autocomplete="current-password"/>
+                </div>
+
+                <div class="member-info-row">
+                    <label for="mi-new-password">새 비밀번호</label>
+                    <input type="password" id="mi-new-password" name="newPassword" class="member-info-input" placeholder="영문, 숫자, 특수문자(!@#$%^*+=.-) 중 2가지 이상 조합 8~20자" autocomplete="new-password"/>
+                </div>
+
+                <div class="member-info-row">
+                    <label for="mi-new-password-confirm">새 비밀번호 확인</label>
+                    <input type="password" id="mi-new-password-confirm" name="newPasswordConfirm" class="member-info-input" autocomplete="new-password"/>
+                </div>
+
+                <button type="button" class="member-info-submit not-implemented">저장</button>
+            </form>
+        </section>
+    </div>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>
