@@ -17,6 +17,10 @@ spring:
       ddl-auto: update
     show-sql: true
 
+  # 자동 WARN 로깅을 끄고 GlobalExceptionHandler 에서 로깅을 처리
+  mvc:
+    log-resolved-exception: false
+
 # JWT 설정 (실제 secret 값은 application-local.yml 에 두고 git 에 올리지 않는다)
 # secret 은 HS256 서명용 256bit 이상 Base64 문자열이어야 한다.
 jwt:
