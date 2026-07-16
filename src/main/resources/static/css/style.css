@@ -738,6 +738,14 @@ button {
     gap: 24px;
 }
 
+.member-info-radio-group.is-locked {
+    opacity: 0.45;
+}
+
+.member-info-radio-group.is-locked .terms-row {
+    cursor: not-allowed;
+}
+
 .member-info-divider {
     margin: 8px 0;
     border: none;
@@ -746,8 +754,8 @@ button {
 
 .member-info-submit {
     align-self: flex-start;
-    margin-top: 8px;
-    padding: 12px 32px;
+    margin-top: 40px;
+    padding: 12px 28px;
     border: none;
     background-color: #111;
     color: #fff;

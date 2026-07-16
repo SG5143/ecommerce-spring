@@ -22,10 +22,46 @@ document.addEventListener('DOMContentLoaded', function () {
             if (marketingRadio) {
                 marketingRadio.checked = true;
             }
+
+            // 프리필로 마케팅 동의 값을 세팅한 직후 채널 잠금 상태를 반영
+            applyMarketingGate();
         })
         .catch(function () {
             // 조회 실패 시 빈 폼 유지
         });
+
+    // 마케팅 수신동의(상위)가 '동의안함'이면 이메일·SMS 수신여부(하위 채널)를
+    // '수신안함'으로 강제하고 선택 불가로 잠금. '동의함'이면 다시 선택 가능하게 품
+    function applyMarketingGate() {
+        const marketingChecked = document.querySelector('input[name="marketingAgreed"]:checked');
+        const agreed = !!marketingChecked && marketingChecked.value === 'true';
+
+        if (!agreed) {
+            const emailNo = document.getElementById('mi-email-agreed-no');
+            const smsNo = document.getElementById('mi-sms-agreed-no');
+            if (emailNo) {
+                emailNo.checked = true;
+            }
+            if (smsNo) {
+                smsNo.checked = true;
+            }
+        }
+
+        document.querySelectorAll('input[name="emailAgreed"], input[name="smsAgreed"]').forEach(function (radio) {
+            radio.disabled = !agreed;
+        });
+        document.querySelectorAll('.channel-agreed-group').forEach(function (group) {
+            group.classList.toggle('is-locked', !agreed);
+        });
+    }
+
+    // 마케팅 동의 라디오 변경 시 채널 잠금 상태를 갱신
+    document.querySelectorAll('input[name="marketingAgreed"]').forEach(function (radio) {
+        radio.addEventListener('change', applyMarketingGate);
+    });
+
+    // 조회 실패(빈 폼, 마케팅 미선택) 시에도 초기부터 잠금 상태가 되도록 한 번 호출.
+    applyMarketingGate();
 
     function setValue(id, value) {
         const el = document.getElementById(id);
