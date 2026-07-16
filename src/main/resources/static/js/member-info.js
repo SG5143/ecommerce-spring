@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             setValue('mi-username', data.username);
             setValue('mi-name', data.name);
+            setValue('mi-email', data.email);
             setValue('mi-zipcode', data.zipcode);
             setValue('mi-address', data.address);
             setValue('mi-address-detail', data.addressDetail);
@@ -18,12 +19,11 @@ document.addEventListener('DOMContentLoaded', function () {
             fillPhone(data.phone);
             fillBirthDate(data.birthDate);
 
-            const marketingRadio = document.getElementById(data.marketingAgreed ? 'mi-marketing-yes' : 'mi-marketing-no');
-            if (marketingRadio) {
-                marketingRadio.checked = true;
-            }
+            checkRadio('marketingAgreed', data.marketingAgreed);
+            checkRadio('emailAgreed', data.emailAgreed);
+            checkRadio('smsAgreed', data.smsAgreed);
 
-            // 프리필로 마케팅 동의 값을 세팅한 직후 채널 잠금 상태를 반영
+            // 채널 라디오를 세팅한 직후 마케팅 미동의면 잠금 상태를 반영(이메일·SMS를 수신안함으로 강제)
             applyMarketingGate();
         })
         .catch(function () {
@@ -90,5 +90,302 @@ document.addEventListener('DOMContentLoaded', function () {
         setValue('mi-birth-year', parts[0]);
         setValue('mi-birth-month', parts[1]);
         setValue('mi-birth-day', parts[2]);
+    }
+
+    // 라디오 그룹에서 boolean 값(true/false)에 해당하는 항목을 체크
+    function checkRadio(name, value) {
+        const target = document.querySelector('input[name="' + name + '"][value="' + (value ? 'true' : 'false') + '"]');
+        if (target) {
+            target.checked = true;
+        }
+    }
+
+    // ---- 저장(회원정보 수정 + 선택적 비밀번호 변경) ----
+    // 프론트 검증 규칙은 signup.js / MemberService 와 대칭을 유지한다.
+    const MINIMUM_AGE = 14;
+    const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const EMAIL_MAX_LENGTH = 255;
+    const PASSWORD_ALLOWED_PATTERN = /^[a-zA-Z0-9!@#$%^*+=.-]{8,20}$/;
+    const PASSWORD_CHAR_GROUPS = [/[a-zA-Z]/, /[0-9]/, /[!@#$%^*+=.-]/];
+
+    function getValue(id) {
+        const el = document.getElementById(id);
+        return el ? el.value.trim() : '';
+    }
+
+    function isRadioTrue(name) {
+        const checked = document.querySelector('input[name="' + name + '"]:checked');
+        return !!checked && checked.value === 'true';
+    }
+
+    function hasRadioSelection(name) {
+        return !!document.querySelector('input[name="' + name + '"]:checked');
+    }
+
+    function isPasswordValid(value) {
+        if (!PASSWORD_ALLOWED_PATTERN.test(value)) {
+            return false;
+        }
+        return PASSWORD_CHAR_GROUPS.filter(function (group) {
+            return group.test(value);
+        }).length >= 2;
+    }
+
+    // 연·월·일 3칸을 Date 로 재조합해 유효 날짜(롤오버)만 통과
+    function getBirthdate() {
+        const year = Number(getValue('mi-birth-year'));
+        const month = Number(getValue('mi-birth-month'));
+        const day = Number(getValue('mi-birth-day'));
+        if (!year || !month || !day) {
+            return null;
+        }
+        const date = new Date(year, month - 1, day);
+        if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+            return null;
+        }
+        return date;
+    }
+
+    function isAtLeastMinimumAge(birthdate) {
+        const today = new Date();
+        let age = today.getFullYear() - birthdate.getFullYear();
+        const monthDiff = today.getMonth() - birthdate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthdate.getDate())) {
+            age -= 1;
+        }
+        return age >= MINIMUM_AGE;
+    }
+
+    // 비밀번호 3칸 중 하나라도 입력되면 변경 시도로 간주
+    function isPasswordChangeRequested() {
+        return !!(getValue('mi-current-password') || getValue('mi-new-password') || getValue('mi-new-password-confirm'));
+    }
+
+    function firstError() {
+        if (!getValue('mi-name')) {
+            return '이름을 입력해주세요.';
+        }
+
+        const email = getValue('mi-email');
+        if (email && (email.length > EMAIL_MAX_LENGTH || !EMAIL_PATTERN.test(email))) {
+            return '이메일 형식을 확인해주세요.';
+        }
+
+        const birthdate = getBirthdate();
+        if (!birthdate) {
+            return '생년월일을 정확히 선택해주세요.';
+        }
+        if (birthdate.getTime() > Date.now()) {
+            return '생년월일은 오늘까지만 입력할 수 있습니다.';
+        }
+        if (!isAtLeastMinimumAge(birthdate)) {
+            return '만 14세 이상만 이용할 수 있습니다.';
+        }
+
+        if (!hasRadioSelection('marketingAgreed')) {
+            return '마케팅 수신동의 여부를 선택해주세요.';
+        }
+
+        if (isPasswordChangeRequested()) {
+            const current = getValue('mi-current-password');
+            if (!current) {
+                return '현재 비밀번호를 입력해주세요.';
+            }
+            const newPassword = getValue('mi-new-password');
+            if (!newPassword) {
+                return '새 비밀번호를 입력해주세요.';
+            }
+            if (!isPasswordValid(newPassword)) {
+                return '비밀번호 형식을 확인해주세요.';
+            }
+            if (newPassword !== getValue('mi-new-password-confirm')) {
+                return '비밀번호가 일치하지 않습니다.';
+            }
+            if (current === newPassword) {
+                return '새 비밀번호가 현재 비밀번호와 같습니다.';
+            }
+        }
+
+        return null;
+    }
+
+    function buildProfilePayload() {
+        return {
+            name: getValue('mi-name'),
+            email: getValue('mi-email'),
+            zipcode: getValue('mi-zipcode'),
+            address: getValue('mi-address'),
+            addressDetail: getValue('mi-address-detail'),
+            birthYear: Number(getValue('mi-birth-year')),
+            birthMonth: Number(getValue('mi-birth-month')),
+            birthDay: Number(getValue('mi-birth-day')),
+            marketingAgreed: isRadioTrue('marketingAgreed'),
+            emailAgreed: isRadioTrue('emailAgreed'),
+            smsAgreed: isRadioTrue('smsAgreed')
+        };
+    }
+
+    function buildPasswordPayload() {
+        return {
+            currentPassword: getValue('mi-current-password'),
+            newPassword: getValue('mi-new-password'),
+            newPasswordConfirm: getValue('mi-new-password-confirm')
+        };
+    }
+
+    // authFetch(Bearer 부착 + 401 재발급) 로 JSON 요청을 보내고 {ok, data} 로 정규화
+    function requestJson(url, method, payload) {
+        return window.authFetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function (response) {
+            return response.json().catch(function () {
+                return {};
+            }).then(function (data) {
+                return { ok: response.ok, data: data };
+            });
+        });
+    }
+
+    // ---- 결과 알림 모달(회원가입 페이지와 동일한 modal-overlay 스타일 재사용) ----
+    const resultOverlay = document.getElementById('mi-result-overlay');
+    const resultClose = document.getElementById('mi-result-close');
+    const resultTitle = document.getElementById('mi-result-title');
+    const resultMessage = document.getElementById('mi-result-message');
+
+    function openResultModal(title, message) {
+        if (!resultOverlay) {
+            window.alert(message);
+            return;
+        }
+        resultTitle.textContent = title;
+        resultMessage.textContent = message;
+        resultOverlay.classList.add('is-open');
+    }
+
+    function closeResultModal() {
+        if (resultOverlay) {
+            resultOverlay.classList.remove('is-open');
+        }
+    }
+
+    if (resultOverlay && resultClose) {
+        resultClose.addEventListener('click', closeResultModal);
+        resultOverlay.addEventListener('click', function (event) {
+            if (event.target === resultOverlay) {
+                closeResultModal();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeResultModal();
+            }
+        });
+    }
+
+    // ---- 입력 중 폼 아래에 실시간 안내(에러) 표시 ----
+    function setError(id, text) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = text || '';
+        }
+    }
+
+    const emailInput = document.getElementById('mi-email');
+    if (emailInput) {
+        emailInput.addEventListener('input', function () {
+            const value = emailInput.value.trim();
+            const invalid = value && (value.length > EMAIL_MAX_LENGTH || !EMAIL_PATTERN.test(value));
+            setError('mi-email-error', invalid ? '이메일 형식에 맞게 입력해주세요.' : '');
+        });
+    }
+
+    function validateBirthInline() {
+        // 세 칸이 모두 채워지기 전에는 안내를 띄우지 않음
+        if (!getValue('mi-birth-year') || !getValue('mi-birth-month') || !getValue('mi-birth-day')) {
+            setError('mi-birth-error', '');
+            return;
+        }
+        const birthdate = getBirthdate();
+        if (!birthdate) {
+            setError('mi-birth-error', '생년월일을 정확히 선택해주세요.');
+        } else if (birthdate.getTime() > Date.now()) {
+            setError('mi-birth-error', '생년월일은 오늘까지만 입력할 수 있습니다.');
+        } else if (!isAtLeastMinimumAge(birthdate)) {
+            setError('mi-birth-error', '만 14세 이상만 이용할 수 있습니다.');
+        } else {
+            setError('mi-birth-error', '');
+        }
+    }
+
+    ['mi-birth-year', 'mi-birth-month', 'mi-birth-day'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', validateBirthInline);
+        }
+    });
+
+    const newPasswordInput = document.getElementById('mi-new-password');
+    const newPasswordConfirmInput = document.getElementById('mi-new-password-confirm');
+
+    function validatePasswordConfirmInline() {
+        const newPassword = getValue('mi-new-password');
+        const confirm = getValue('mi-new-password-confirm');
+        const mismatched = confirm && newPassword !== confirm;
+        setError('mi-new-password-confirm-error', mismatched ? '비밀번호가 일치하지 않습니다.' : '');
+    }
+
+    if (newPasswordInput) {
+        newPasswordInput.addEventListener('input', function () {
+            const value = getValue('mi-new-password');
+            const invalid = value && !isPasswordValid(value);
+            setError('mi-new-password-error', invalid ? '영문, 숫자, 특수문자(!@#$%^*+=.-) 중 2가지 이상을 조합한 8~20자여야 합니다.' : '');
+            validatePasswordConfirmInline();
+        });
+    }
+    if (newPasswordConfirmInput) {
+        newPasswordConfirmInput.addEventListener('input', validatePasswordConfirmInline);
+    }
+
+    const submitButton = document.getElementById('mi-submit');
+    if (submitButton) {
+        submitButton.addEventListener('click', function () {
+            const error = firstError();
+            if (error) {
+                openResultModal('입력 정보를 확인해주세요', error);
+                return;
+            }
+
+            submitButton.disabled = true;
+            const changePassword = isPasswordChangeRequested();
+
+            requestJson('/api/v1/members/me', 'PUT', buildProfilePayload())
+                .then(function (result) {
+                    if (!result.ok) {
+                        throw new Error((result.data && result.data.message) || '회원정보 수정에 실패했습니다.');
+                    }
+                    if (!changePassword) {
+                        return null;
+                    }
+                    return requestJson('/api/v1/members/me/password', 'PATCH', buildPasswordPayload())
+                        .then(function (pwResult) {
+                            if (!pwResult.ok) {
+                                throw new Error((pwResult.data && pwResult.data.message) || '비밀번호 변경에 실패했습니다.');
+                            }
+                            return null;
+                        });
+                })
+                .then(function () {
+                    openResultModal('저장 완료', '회원정보가 저장되었습니다.');
+                    setTimeout(function () {
+                        window.location.reload();
+                    }, 1000);
+                })
+                .catch(function (err) {
+                    submitButton.disabled = false;
+                    openResultModal('저장 실패', err && err.message ? err.message : '처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+                });
+        });
     }
 });

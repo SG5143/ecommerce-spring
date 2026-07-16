@@ -33,9 +33,10 @@
                     <input type="text" id="mi-name" name="name" class="member-info-input"/>
                 </div>
 
-                <div class="member-info-row">
+                <div class="member-info-row has-hint">
                     <label for="mi-email">이메일</label>
                     <input type="email" id="mi-email" name="email" class="member-info-input" placeholder="이메일을 입력해주세요."/>
+                    <p class="member-info-error" id="mi-email-error"></p>
                 </div>
 
                 <div class="member-info-row">
@@ -69,7 +70,7 @@
                 </div>
 
                 <!-- 생년월일: 선택박스가 아닌 직접 입력 (연·월·일 3칸) -->
-                <div class="member-info-row">
+                <div class="member-info-row has-hint">
                     <label for="mi-birth-year">생년월일</label>
                     <div class="member-info-group">
                         <input type="text" id="mi-birth-year" name="birthYear" class="member-info-input" placeholder="YYYY" maxlength="4" inputmode="numeric"/>
@@ -79,6 +80,7 @@
                         <input type="text" id="mi-birth-day" name="birthDay" class="member-info-input" placeholder="DD" maxlength="2" inputmode="numeric"/>
                         <span class="member-info-unit">일</span>
                     </div>
+                    <p class="member-info-error" id="mi-birth-error"></p>
                 </div>
 
                 <div class="member-info-row">
@@ -136,19 +138,29 @@
                     <input type="password" id="mi-current-password" name="currentPassword" class="member-info-input" placeholder="비밀번호 변경 시 입력" autocomplete="current-password"/>
                 </div>
 
-                <div class="member-info-row">
+                <div class="member-info-row has-hint">
                     <label for="mi-new-password">새 비밀번호</label>
                     <input type="password" id="mi-new-password" name="newPassword" class="member-info-input" placeholder="영문, 숫자, 특수문자(!@#$%^*+=.-) 중 2가지 이상 조합 8~20자" autocomplete="new-password"/>
+                    <p class="member-info-error" id="mi-new-password-error"></p>
                 </div>
 
-                <div class="member-info-row">
+                <div class="member-info-row has-hint">
                     <label for="mi-new-password-confirm">새 비밀번호 확인</label>
                     <input type="password" id="mi-new-password-confirm" name="newPasswordConfirm" class="member-info-input" autocomplete="new-password"/>
+                    <p class="member-info-error" id="mi-new-password-confirm-error"></p>
                 </div>
 
-                <button type="button" class="member-info-submit not-implemented">회원 정보 수정</button>
+                <button type="button" id="mi-submit" class="member-info-submit">회원 정보 수정</button>
             </form>
         </section>
+    </div>
+
+    <div class="modal-overlay" id="mi-result-overlay">
+        <div class="modal-box" role="dialog" aria-modal="true">
+            <button type="button" class="modal-close" id="mi-result-close" aria-label="닫기">&times;</button>
+            <h2 class="modal-title" id="mi-result-title"></h2>
+            <p class="modal-message" id="mi-result-message"></p>
+        </div>
     </div>
 </main>
 
