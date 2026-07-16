@@ -4,7 +4,9 @@ import com.lsg.mingler.domain.member.dao.MemberAddressRepository;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
 import com.lsg.mingler.domain.member.dto.MemberDetailResponse;
+import com.lsg.mingler.domain.member.dto.MemberPasswordUpdateRequest;
 import com.lsg.mingler.domain.member.dto.MemberSignupRequest;
+import com.lsg.mingler.domain.member.dto.MemberUpdateRequest;
 import com.lsg.mingler.domain.member.dto.MemberSummaryResponse;
 import com.lsg.mingler.domain.member.entity.Member;
 import com.lsg.mingler.domain.member.entity.MemberAddress;
@@ -33,6 +35,8 @@ public class MemberService {
             Pattern.compile("[!@#$%^*+=.\\-]")
     };
     private static final int MINIMUM_AGE = 14;
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final int EMAIL_MAX_LENGTH = 255;
 
     private final MemberRepository memberRepository;
     private final MemberAddressRepository memberAddressRepository;
@@ -88,7 +92,10 @@ public class MemberService {
                 address != null ? address.getZipcode() : null,
                 address != null ? address.getAddress() : null,
                 address != null ? address.getAddressDetail() : null,
-                Boolean.TRUE.equals(member.getMarketingAgreed())
+                Boolean.TRUE.equals(member.getMarketingAgreed()),
+                member.getEmail(),
+                Boolean.TRUE.equals(member.getEmailAgreed()),
+                Boolean.TRUE.equals(member.getSmsAgreed())
         );
     }
 
@@ -149,6 +156,57 @@ public class MemberService {
         memberAddressRepository.save(address);
     }
 
+    /**
+     * 회원정보 수정. 편집 대상 값을 통째로 덮어쓴다(아이디·휴대폰 제외).
+     * 마케팅 미동의 시 이메일·SMS 수신동의도 강제로 false 처리(프론트 잠금과 대칭).
+     */
+    @Transactional
+    public void updateProfile(Long memberId, MemberUpdateRequest request) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
+
+        validateRequired(request.name(), "이름을 입력해주세요.");
+        validateEmailFormat(request.email());
+
+        LocalDate birthDate = parseBirthDate(request.birthYear(), request.birthMonth(), request.birthDay());
+        if (birthDate.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("생년월일은 오늘까지만 입력할 수 있습니다.");
+        }
+        if (Period.between(birthDate, LocalDate.now()).getYears() < MINIMUM_AGE) {
+            throw new IllegalArgumentException("만 14세 이상만 이용할 수 있습니다.");
+        }
+
+        boolean marketingAgreed = request.marketingAgreed();
+        boolean emailAgreed = marketingAgreed && request.emailAgreed();
+        boolean smsAgreed = marketingAgreed && request.smsAgreed();
+
+        member.updateProfile(request.name(), request.email(), birthDate, marketingAgreed, emailAgreed, smsAgreed);
+
+        memberAddressRepository.findByMemberIdAndIsDefaultTrue(memberId)
+                .ifPresent(address -> address.updateAddress(request.zipcode(), request.address(), request.addressDetail()));
+    }
+
+    /**
+     * 비밀번호 변경. 현재 비밀번호를 대조한 뒤 새 비밀번호로 교체.
+     */
+    @Transactional
+    public void changePassword(Long memberId, MemberPasswordUpdateRequest request) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
+
+        validateRequired(request.currentPassword(), "현재 비밀번호를 입력해주세요.");
+        if (!passwordEncoder.matches(request.currentPassword(), member.getPassword())) {
+            throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
+        }
+
+        validatePassword(request.newPassword(), request.newPasswordConfirm());
+        if (request.currentPassword().equals(request.newPassword())) {
+            throw new IllegalArgumentException("새 비밀번호가 현재 비밀번호와 같습니다.");
+        }
+
+        member.changePassword(passwordEncoder.encode(request.newPassword()));
+    }
+
     private String validateMemberIdFormat(String memberId) {
         if (memberId == null || memberId.isBlank()) {
             return "아이디는 필수입니다.";
@@ -183,6 +241,16 @@ public class MemberService {
     private void validateRequired(String value, String message) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(message);
+        }
+    }
+
+    /** 이메일은 선택 입력이므로 비어있으면 통과하고, 값이 있을 때만 형식·길이를 검증 */
+    private void validateEmailFormat(String email) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        if (email.length() > EMAIL_MAX_LENGTH || !EMAIL_PATTERN.matcher(email).matches()) {
+            throw new IllegalArgumentException("이메일 형식을 확인해주세요.");
         }
     }
 

@@ -1,14 +1,23 @@
 package com.lsg.mingler.domain.member.service;
 
+import com.lsg.mingler.domain.member.dao.MemberAddressRepository;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
+import com.lsg.mingler.domain.member.dto.MemberPasswordUpdateRequest;
+import com.lsg.mingler.domain.member.dto.MemberUpdateRequest;
+import com.lsg.mingler.domain.member.entity.Member;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -17,8 +26,36 @@ class MemberServiceTest {
     @Mock
     private MemberRepository memberRepository;
 
+    @Mock
+    private MemberAddressRepository memberAddressRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
     private MemberService memberService;
+
+    private Member sampleMember() {
+        LocalDateTime now = LocalDateTime.now();
+        return Member.builder()
+                .username("tester1")
+                .password("ENCODED")
+                .name("홍길동")
+                .phone("01012345678")
+                .birthDate(LocalDate.of(1990, 1, 1))
+                .marketingAgreed(true)
+                .marketingAgreedAt(now)
+                .termsAgreedAt(now)
+                .privacyAgreedAt(now)
+                .build();
+    }
+
+    private MemberUpdateRequest updateRequest(String name, String email, LocalDate birth,
+                                              boolean marketing, boolean emailAgreed, boolean smsAgreed) {
+        return new MemberUpdateRequest(name, email, "12345", "서울시 어딘가", "101동 101호",
+                birth.getYear(), birth.getMonthValue(), birth.getDayOfMonth(),
+                marketing, emailAgreed, smsAgreed);
+    }
 
     @Test
     void 사용가능한_아이디면_passed가_true다() {
@@ -86,6 +123,82 @@ class MemberServiceTest {
 
         assertThat(response.passed()).isFalse();
         assertThat(response.msg()).isEqualTo("아이디는 소문자 영문으로 시작하는 소문자/숫자/.,_ 조합이어야 합니다.");
+    }
+
+    @Test
+    void 이메일_형식이_틀리면_수정에_실패한다() {
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember()));
+
+        MemberUpdateRequest request = updateRequest("홍길동", "invalid-email", LocalDate.of(1990, 1, 1), true, false, false);
+
+        assertThatThrownBy(() -> memberService.updateProfile(1L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이메일 형식을 확인해주세요.");
+    }
+
+    @Test
+    void 이메일이_비어있으면_수정에_통과한다() {
+        Member member = sampleMember();
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(memberAddressRepository.findByMemberIdAndIsDefaultTrue(1L)).thenReturn(Optional.empty());
+
+        MemberUpdateRequest request = updateRequest("홍길동", "", LocalDate.of(1990, 1, 1), true, true, true);
+        memberService.updateProfile(1L, request);
+
+        assertThat(member.getEmail()).isEmpty();
+        assertThat(member.getEmailAgreed()).isTrue();
+    }
+
+    @Test
+    void 만14세_미만이면_수정에_실패한다() {
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember()));
+
+        LocalDate underage = LocalDate.now().minusYears(13);
+        MemberUpdateRequest request = updateRequest("홍길동", "user@mingler.com", underage, true, false, false);
+
+        assertThatThrownBy(() -> memberService.updateProfile(1L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("만 14세 이상만 이용할 수 있습니다.");
+    }
+
+    @Test
+    void 마케팅_미동의면_이메일SMS수신도_false로_저장된다() {
+        Member member = sampleMember();
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(memberAddressRepository.findByMemberIdAndIsDefaultTrue(1L)).thenReturn(Optional.empty());
+
+        MemberUpdateRequest request = updateRequest("홍길동", "user@mingler.com", LocalDate.of(1990, 1, 1), false, true, true);
+        memberService.updateProfile(1L, request);
+
+        assertThat(member.getMarketingAgreed()).isFalse();
+        assertThat(member.getEmailAgreed()).isFalse();
+        assertThat(member.getSmsAgreed()).isFalse();
+    }
+
+    @Test
+    void 현재_비밀번호가_틀리면_변경에_실패한다() {
+        Member member = sampleMember();
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("wrongPw1!", "ENCODED")).thenReturn(false);
+
+        MemberPasswordUpdateRequest request = new MemberPasswordUpdateRequest("wrongPw1!", "NewPass12!", "NewPass12!");
+
+        assertThatThrownBy(() -> memberService.changePassword(1L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("현재 비밀번호가 일치하지 않습니다.");
+    }
+
+    @Test
+    void 새_비밀번호_확인이_다르면_변경에_실패한다() {
+        Member member = sampleMember();
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("current1!", "ENCODED")).thenReturn(true);
+
+        MemberPasswordUpdateRequest request = new MemberPasswordUpdateRequest("current1!", "NewPass12!", "Different99!");
+
+        assertThatThrownBy(() -> memberService.changePassword(1L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("비밀번호가 일치하지 않습니다.");
     }
 
 }

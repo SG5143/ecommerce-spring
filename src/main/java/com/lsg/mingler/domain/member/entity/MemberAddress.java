@@ -68,4 +68,11 @@ public class MemberAddress {
         this.isDefault = isDefault != null && isDefault;
     }
 
+    /** 우편번호·기본주소·상세주소를 갱신 */
+    public void updateAddress(String zipcode, String address, String addressDetail) {
+        this.zipcode = zipcode;
+        this.address = address;
+        this.addressDetail = addressDetail;
+    }
+
 }

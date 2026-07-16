@@ -40,6 +40,21 @@ public class Member {
     @Column(name = "phone_verified_at")
     private LocalDateTime phoneVerifiedAt;
 
+    @Column(length = 255)
+    private String email;
+
+    @Column(name = "email_agreed", nullable = false)
+    private Boolean emailAgreed;
+
+    @Column(name = "email_agreed_at")
+    private LocalDateTime emailAgreedAt;
+
+    @Column(name = "sms_agreed", nullable = false)
+    private Boolean smsAgreed;
+
+    @Column(name = "sms_agreed_at")
+    private LocalDateTime smsAgreedAt;
+
     @Column(name = "birth_date", nullable = false)
     private LocalDate birthDate;
 
@@ -110,6 +125,8 @@ public class Member {
         this.loginFailCount = 0;
         this.marketingAgreed = marketingAgreed != null && marketingAgreed;
         this.marketingAgreedAt = marketingAgreedAt;
+        this.emailAgreed = false;
+        this.smsAgreed = false;
         this.termsAgreedAt = termsAgreedAt;
         this.privacyAgreedAt = privacyAgreedAt;
     }
@@ -145,6 +162,37 @@ public class Member {
     /** 최근 로그인 시각을 현재 시각으로 갱신 */
     public void updateLastLoginAt() {
         this.lastLoginAt = LocalDateTime.now();
+    }
+
+    /**
+     * 회원정보 수정 페이지에서 편집 가능한 프로필 값을 갱신
+     * 각 수신동의의 동의 시각은 새로 동의(미동의→동의)할 때 현재 시각으로, 동의 해제 시 null 로 처리
+     */
+    public void updateProfile(String name, String email, LocalDate birthDate, boolean marketingAgreed, boolean emailAgreed, boolean smsAgreed) {
+        LocalDateTime now = LocalDateTime.now();
+        this.name = name;
+        this.email = email;
+        this.birthDate = birthDate;
+        this.marketingAgreedAt = resolveAgreedAt(this.marketingAgreed, marketingAgreed, this.marketingAgreedAt, now);
+        this.marketingAgreed = marketingAgreed;
+        this.emailAgreedAt = resolveAgreedAt(this.emailAgreed, emailAgreed, this.emailAgreedAt, now);
+        this.emailAgreed = emailAgreed;
+        this.smsAgreedAt = resolveAgreedAt(this.smsAgreed, smsAgreed, this.smsAgreedAt, now);
+        this.smsAgreed = smsAgreed;
+    }
+
+    /** 이미 인코딩된 새 비밀번호로 교체 */
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
+    /** 동의 여부 변경에 따른 동의 시각 계산: 미동의면 null, 새 동의면 now, 기존 동의 유지면 기존 시각 보존 */
+    private static LocalDateTime resolveAgreedAt(Boolean previousAgreed, boolean nextAgreed, LocalDateTime previousAgreedAt, LocalDateTime now) {
+        if (!nextAgreed) {
+            return null;
+        }
+        boolean wasAgreed = Boolean.TRUE.equals(previousAgreed);
+        return wasAgreed && previousAgreedAt != null ? previousAgreedAt : now;
     }
 
 }

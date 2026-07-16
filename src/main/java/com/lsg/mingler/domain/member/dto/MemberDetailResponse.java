@@ -13,6 +13,9 @@ public record MemberDetailResponse(
         String zipcode,
         String address,
         String addressDetail,
-        boolean marketingAgreed
+        boolean marketingAgreed,
+        String email,
+        boolean emailAgreed,
+        boolean smsAgreed
 ) {
 }
