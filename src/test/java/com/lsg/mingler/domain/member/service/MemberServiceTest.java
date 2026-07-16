@@ -7,6 +7,7 @@ import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
 import com.lsg.mingler.domain.member.dto.MemberPasswordUpdateRequest;
 import com.lsg.mingler.domain.member.dto.MemberUpdateRequest;
 import com.lsg.mingler.domain.member.entity.Member;
+import com.lsg.mingler.global.error.DuplicateException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -57,7 +58,7 @@ class MemberServiceTest {
 
     private MemberUpdateRequest updateRequest(String name, String email, LocalDate birth,
                                               boolean marketing, boolean emailAgreed, boolean smsAgreed) {
-        return new MemberUpdateRequest(name, email, "12345", "서울시 어딘가", "101동 101호",
+        return new MemberUpdateRequest(name, "01012345678", email, "12345", "서울시 어딘가", "101동 101호",
                 birth.getYear(), birth.getMonthValue(), birth.getDayOfMonth(),
                 marketing, emailAgreed, smsAgreed);
     }
@@ -152,6 +153,19 @@ class MemberServiceTest {
 
         assertThat(member.getEmail()).isEmpty();
         assertThat(member.getEmailAgreed()).isTrue();
+    }
+
+    @Test
+    void 휴대폰이_다른_회원과_중복이면_수정에_실패한다() {
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember()));
+        when(memberRepository.existsByPhone("01099998888")).thenReturn(true);
+
+        MemberUpdateRequest request = new MemberUpdateRequest("홍길동", "010-9999-8888", "user@mingler.com",
+                "12345", "서울시 어딘가", "101동 101호", 1990, 1, 1, true, false, false);
+
+        assertThatThrownBy(() -> memberService.updateProfile(1L, request))
+                .isInstanceOf(DuplicateException.class)
+                .hasMessage("이미 등록된 휴대폰 번호입니다.");
     }
 
     @Test

@@ -168,7 +168,13 @@ public class MemberService {
                 .orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
 
         validateRequired(request.name(), "이름을 입력해주세요.");
+        validateRequired(request.phone(), "휴대폰 번호를 입력해주세요.");
         validateEmailFormat(request.email());
+
+        String phone = request.phone().replaceAll("[^0-9]", "");
+        if (!phone.equals(member.getPhone()) && memberRepository.existsByPhone(phone)) {
+            throw new DuplicateException("이미 등록된 휴대폰 번호입니다.");
+        }
 
         LocalDate birthDate = parseBirthDate(request.birthYear(), request.birthMonth(), request.birthDay());
         if (birthDate.isAfter(LocalDate.now())) {
@@ -182,7 +188,7 @@ public class MemberService {
         boolean emailAgreed = marketingAgreed && request.emailAgreed();
         boolean smsAgreed = marketingAgreed && request.smsAgreed();
 
-        member.updateProfile(request.name(), request.email(), birthDate, marketingAgreed, emailAgreed, smsAgreed);
+        member.updateProfile(request.name(), phone, request.email(), birthDate, marketingAgreed, emailAgreed, smsAgreed);
 
         memberAddressRepository.findByMemberIdAndIsDefaultTrue(memberId)
                 .ifPresent(address -> address.updateAddress(request.zipcode(), request.address(), request.addressDetail()));

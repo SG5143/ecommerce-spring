@@ -6,6 +6,7 @@ package com.lsg.mingler.domain.member.dto;
  */
 public record MemberUpdateRequest(
         String name,
+        String phone,
         String email,
         String zipcode,
         String address,

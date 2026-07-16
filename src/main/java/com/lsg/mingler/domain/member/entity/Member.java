@@ -168,9 +168,10 @@ public class Member {
      * 회원정보 수정 페이지에서 편집 가능한 프로필 값을 갱신
      * 각 수신동의의 동의 시각은 새로 동의(미동의→동의)할 때 현재 시각으로, 동의 해제 시 null 로 처리
      */
-    public void updateProfile(String name, String email, LocalDate birthDate, boolean marketingAgreed, boolean emailAgreed, boolean smsAgreed) {
+    public void updateProfile(String name, String phone, String email, LocalDate birthDate, boolean marketingAgreed, boolean emailAgreed, boolean smsAgreed) {
         LocalDateTime now = LocalDateTime.now();
         this.name = name;
+        this.phone = phone;
         this.email = email;
         this.birthDate = birthDate;
         this.marketingAgreedAt = resolveAgreedAt(this.marketingAgreed, marketingAgreed, this.marketingAgreedAt, now);

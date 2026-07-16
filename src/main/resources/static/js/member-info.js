@@ -100,6 +100,113 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // ---- 휴대폰 번호수정 모달 (회원가입과 동일: 임시 등록) ----
+    const phoneVerifyButton = document.getElementById('mi-phone-verify-button');
+    const phoneVerifyOverlay = document.getElementById('mi-phone-verify-overlay');
+    const phoneVerifyClose = document.getElementById('mi-phone-verify-close');
+    const phoneVerifyInput = document.getElementById('mi-phone-verify-input');
+    const phoneVerifyConfirm = document.getElementById('mi-phone-verify-confirm');
+
+    if (phoneVerifyButton && phoneVerifyOverlay && phoneVerifyClose && phoneVerifyInput && phoneVerifyConfirm) {
+        function formatPhoneNumber(value) {
+            const digits = value.replace(/\D/g, '').slice(0, 11);
+            if (digits.length < 4) {
+                return digits;
+            }
+            if (digits.length < 8) {
+                return digits.slice(0, 3) + '-' + digits.slice(3);
+            }
+            return digits.slice(0, 3) + '-' + digits.slice(3, 7) + '-' + digits.slice(7);
+        }
+
+        phoneVerifyInput.addEventListener('input', function () {
+            phoneVerifyInput.value = formatPhoneNumber(phoneVerifyInput.value);
+        });
+
+        function openPhoneVerifyModal() {
+            phoneVerifyInput.value = '';
+            phoneVerifyOverlay.classList.add('is-open');
+        }
+
+        function closePhoneVerifyModal() {
+            phoneVerifyOverlay.classList.remove('is-open');
+        }
+
+        phoneVerifyButton.addEventListener('click', openPhoneVerifyModal);
+        ['mi-phone1', 'mi-phone2', 'mi-phone3'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('click', openPhoneVerifyModal);
+            }
+        });
+        phoneVerifyClose.addEventListener('click', closePhoneVerifyModal);
+        phoneVerifyOverlay.addEventListener('click', function (event) {
+            if (event.target === phoneVerifyOverlay) {
+                closePhoneVerifyModal();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closePhoneVerifyModal();
+            }
+        });
+
+        phoneVerifyConfirm.addEventListener('click', function () {
+            const digits = phoneVerifyInput.value.replace(/[^0-9]/g, '');
+            if (digits.length < 10) {
+                return;
+            }
+            fillPhone(digits);
+            closePhoneVerifyModal();
+        });
+    }
+
+    // ---- 우편번호 검색 모달 (다음 우편번호 API) ----
+    const zipcodeSearchButton = document.getElementById('mi-zipcode-search-button');
+    const zipcodeInput = document.getElementById('mi-zipcode');
+    const addressInput = document.getElementById('mi-address');
+    const addressDetailInput = document.getElementById('mi-address-detail');
+    const zipcodeOverlay = document.getElementById('mi-zipcode-search-overlay');
+    const zipcodeClose = document.getElementById('mi-zipcode-search-close');
+    const zipcodeEmbedTarget = document.getElementById('mi-zipcode-search-embed');
+
+    if (zipcodeSearchButton && zipcodeInput && addressInput && addressDetailInput
+        && zipcodeOverlay && zipcodeClose && zipcodeEmbedTarget) {
+        function openZipcodeModal() {
+            zipcodeOverlay.classList.add('is-open');
+            zipcodeEmbedTarget.innerHTML = '';
+            new daum.Postcode({
+                oncomplete: function (data) {
+                    zipcodeInput.value = data.zonecode;
+                    addressInput.value = data.roadAddress || data.address;
+                    addressDetailInput.focus();
+                    closeZipcodeModal();
+                },
+                width: '100%',
+                height: '100%'
+            }).embed(zipcodeEmbedTarget);
+        }
+
+        function closeZipcodeModal() {
+            zipcodeOverlay.classList.remove('is-open');
+        }
+
+        zipcodeSearchButton.addEventListener('click', openZipcodeModal);
+        zipcodeInput.addEventListener('click', openZipcodeModal);
+        addressInput.addEventListener('click', openZipcodeModal);
+        zipcodeClose.addEventListener('click', closeZipcodeModal);
+        zipcodeOverlay.addEventListener('click', function (event) {
+            if (event.target === zipcodeOverlay) {
+                closeZipcodeModal();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeZipcodeModal();
+            }
+        });
+    }
+
     // ---- 저장(회원정보 수정 + 선택적 비밀번호 변경) ----
     // 프론트 검증 규칙은 signup.js / MemberService 와 대칭을 유지한다.
     const MINIMUM_AGE = 14;
@@ -171,6 +278,11 @@ document.addEventListener('DOMContentLoaded', function () {
             return '이메일 형식을 확인해주세요.';
         }
 
+        const phone = getValue('mi-phone1') + getValue('mi-phone2') + getValue('mi-phone3');
+        if (phone.length < 10) {
+            return '휴대폰 번호를 입력해주세요.';
+        }
+
         const birthdate = getBirthdate();
         if (!birthdate) {
             return '생년월일을 정확히 선택해주세요.';
@@ -212,6 +324,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function buildProfilePayload() {
         return {
             name: getValue('mi-name'),
+            phone: getValue('mi-phone1') + getValue('mi-phone2') + getValue('mi-phone3'),
             email: getValue('mi-email'),
             zipcode: getValue('mi-zipcode'),
             address: getValue('mi-address'),

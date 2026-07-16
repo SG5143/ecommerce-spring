@@ -8,6 +8,7 @@
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
     <script th:src="@{/js/api.js}" defer></script>
     <script th:src="@{/js/member-info.js}" defer></script>
+    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
 </head>
 <body>
 <div th:replace="~{layout/header :: header}"></div>
@@ -47,7 +48,7 @@
                         <input type="tel" id="mi-phone2" name="phone2" class="member-info-input" maxlength="4" inputmode="numeric" readonly/>
                         <span class="member-info-sep">-</span>
                         <input type="tel" id="mi-phone3" name="phone3" class="member-info-input" maxlength="4" inputmode="numeric" readonly/>
-                        <button type="button" class="member-info-inline-btn not-implemented">번호수정</button>
+                        <button type="button" id="mi-phone-verify-button" class="member-info-inline-btn">번호수정</button>
                     </div>
                 </div>
 
@@ -55,7 +56,7 @@
                     <label for="mi-zipcode">우편번호</label>
                     <div class="member-info-inline">
                         <input type="text" id="mi-zipcode" name="zipcode" class="member-info-input" readonly/>
-                        <button type="button" class="member-info-inline-btn not-implemented">검색</button>
+                        <button type="button" id="mi-zipcode-search-button" class="member-info-inline-btn">검색</button>
                     </div>
                 </div>
 
@@ -153,6 +154,24 @@
                 <button type="button" id="mi-submit" class="member-info-submit">회원 정보 수정</button>
             </form>
         </section>
+    </div>
+
+    <div class="modal-overlay" id="mi-phone-verify-overlay">
+        <div class="modal-box" role="dialog" aria-modal="true">
+            <button type="button" class="modal-close" id="mi-phone-verify-close" aria-label="닫기">&times;</button>
+            <h2 class="modal-title">본인확인</h2>
+            <p class="modal-message">현재 개발 중인 기능입니다.<br/>전화번호 입력 시 임시로 등록됩니다.</p>
+            <input type="tel" id="mi-phone-verify-input" class="member-info-input" placeholder="010-1234-1234" inputmode="numeric" maxlength="13"/>
+            <button type="button" class="member-info-submit" id="mi-phone-verify-confirm">확인</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="mi-zipcode-search-overlay">
+        <div class="modal-box modal-box-wide" role="dialog" aria-modal="true">
+            <button type="button" class="modal-close" id="mi-zipcode-search-close" aria-label="닫기">&times;</button>
+            <h2 class="modal-title">우편번호 검색</h2>
+            <div id="mi-zipcode-search-embed" class="zipcode-search-embed"></div>
+        </div>
     </div>
 
     <div class="modal-overlay" id="mi-result-overlay">
