@@ -1,5 +1,6 @@
 package com.lsg.mingler.domain.member.service;
 
+import com.lsg.mingler.domain.auth.service.AuthService;
 import com.lsg.mingler.domain.member.dao.MemberAddressRepository;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
@@ -41,6 +42,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final MemberAddressRepository memberAddressRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
 
     public MemberCheckIdResponse checkId(String memberId) {
         String error = validateMemberIdFormat(memberId);
@@ -205,6 +207,9 @@ public class MemberService {
         }
 
         member.changePassword(passwordEncoder.encode(request.newPassword()));
+
+        // 비밀번호 변경은 보안 이벤트 → 발급된 모든 Refresh 토큰을 폐기해 전체 로그아웃 처리
+        authService.revokeAllTokens(memberId);
     }
 
     private String validateMemberIdFormat(String memberId) {

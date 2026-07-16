@@ -377,6 +377,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         });
                 })
                 .then(function () {
+                    if (changePassword) {
+                        // 비밀번호 변경 시 서버가 모든 Refresh 토큰을 폐기하므로 재로그인이 필요.
+                        openResultModal('비밀번호 변경 완료', '보안을 위해 다시 로그인해주세요.');
+                        setTimeout(function () {
+                            window.clearAccessToken();
+                            window.location.href = '/login';
+                        }, 3000);
+                        return;
+                    }
                     openResultModal('저장 완료', '회원정보가 저장되었습니다.');
                     setTimeout(function () {
                         window.location.reload();

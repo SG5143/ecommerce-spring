@@ -169,9 +169,9 @@ public class AuthService {
     }
 
     /**
-     * 해당 회원의 유효한 Refresh 토큰을 모두 폐기한다 (탈취 탐지 시 전체 로그아웃).
+     * 해당 회원의 Refresh 토큰을 모두 폐기한다 (탈취 탐지·비밀번호 변경 시 전체 로그아웃).
      */
-    private void revokeAllTokens(Long memberId) {
+    public void revokeAllTokens(Long memberId) {
         List<RefreshToken> tokens = refreshTokenRepository.findAllByMemberId(memberId);
         tokens.forEach(RefreshToken::revoke);
         refreshTokenRepository.saveAll(tokens);

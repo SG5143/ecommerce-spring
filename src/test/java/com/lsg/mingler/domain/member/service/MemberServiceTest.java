@@ -1,5 +1,6 @@
 package com.lsg.mingler.domain.member.service;
 
+import com.lsg.mingler.domain.auth.service.AuthService;
 import com.lsg.mingler.domain.member.dao.MemberAddressRepository;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
@@ -18,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +33,9 @@ class MemberServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private AuthService authService;
 
     @InjectMocks
     private MemberService memberService;
@@ -199,6 +204,18 @@ class MemberServiceTest {
         assertThatThrownBy(() -> memberService.changePassword(1L, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("비밀번호가 일치하지 않습니다.");
+    }
+
+    @Test
+    void 비밀번호_변경_성공시_모든_리프레시토큰을_폐기한다() {
+        Member member = sampleMember();
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("current1!", "ENCODED")).thenReturn(true);
+
+        MemberPasswordUpdateRequest request = new MemberPasswordUpdateRequest("current1!", "NewPass12!", "NewPass12!");
+        memberService.changePassword(1L, request);
+
+        verify(authService).revokeAllTokens(1L);
     }
 
 }
