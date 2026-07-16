@@ -232,4 +232,17 @@ class MemberServiceTest {
         verify(authService).revokeAllTokens(1L);
     }
 
+    @Test
+    void 탈퇴하면_상태가_WITHDRAWN이_되고_토큰이_폐기된다() {
+        Member member = sampleMember();
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+
+        memberService.withdraw(1L);
+
+        assertThat(member.getStatus()).isEqualTo("WITHDRAWN");
+        assertThat(member.getWithdrawnAt()).isNotNull();
+        assertThat(member.getPointBalance()).isZero();
+        verify(authService).revokeAllTokens(1L);
+    }
+
 }

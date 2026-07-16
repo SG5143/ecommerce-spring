@@ -788,6 +788,52 @@ button {
     cursor: pointer;
 }
 
+.member-info-withdraw-row {
+    margin-top: 16px;
+    text-align: right;
+}
+
+.member-info-withdraw {
+    padding: 0;
+    border: none;
+    background: none;
+    color: #999;
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.member-info-withdraw:hover {
+    color: #c62828;
+}
+
+.member-info-modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.member-info-modal-cancel,
+.member-info-modal-danger {
+    flex: 1;
+    padding: 12px 0;
+    border: none;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.member-info-modal-cancel {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    color: #333;
+}
+
+.member-info-modal-danger {
+    background-color: #111;
+    color: #fff;
+}
+
 /* Signup page */
 .signup-page {
     width: min(92%, 480px);

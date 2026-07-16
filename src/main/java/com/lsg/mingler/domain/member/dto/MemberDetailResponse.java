@@ -16,6 +16,7 @@ public record MemberDetailResponse(
         boolean marketingAgreed,
         String email,
         boolean emailAgreed,
-        boolean smsAgreed
+        boolean smsAgreed,
+        int pointBalance
 ) {
 }

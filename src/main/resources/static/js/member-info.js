@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', function () {
+    // 탈퇴 확인 모달의 적립금 안내에 사용할 보유 적립금
+    let memberPointBalance = 0;
+    // 결과 모달을 닫을 때 홈으로 이동해야 하는지(탈퇴 완료 안내용)
+    let redirectHomeOnResultClose = false;
+
     // 회원가입에 입력했던 값들을 조회해 폼에 프리필한다.
     // authFetch 가 401 시 재발급/재시도, 실패 시 /login 리다이렉트를 처리한다.
     window.authFetch('/api/v1/members/me/detail')
@@ -22,6 +27,8 @@ document.addEventListener('DOMContentLoaded', function () {
             checkRadio('marketingAgreed', data.marketingAgreed);
             checkRadio('emailAgreed', data.emailAgreed);
             checkRadio('smsAgreed', data.smsAgreed);
+
+            memberPointBalance = data.pointBalance || 0;
 
             // 채널 라디오를 세팅한 직후 마케팅 미동의면 잠금 상태를 반영(이메일·SMS를 수신안함으로 강제)
             applyMarketingGate();
@@ -381,6 +388,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (resultOverlay) {
             resultOverlay.classList.remove('is-open');
         }
+        if (redirectHomeOnResultClose) {
+            window.location.href = '/';
+        }
     }
 
     if (resultOverlay && resultClose) {
@@ -507,6 +517,66 @@ document.addEventListener('DOMContentLoaded', function () {
                 .catch(function (err) {
                     submitButton.disabled = false;
                     openResultModal('저장 실패', err && err.message ? err.message : '처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+                });
+        });
+    }
+
+    // ---- 회원 탈퇴 ----
+    const withdrawButton = document.getElementById('mi-withdraw');
+    const withdrawOverlay = document.getElementById('mi-withdraw-overlay');
+    const withdrawClose = document.getElementById('mi-withdraw-close');
+    const withdrawCancel = document.getElementById('mi-withdraw-cancel');
+    const withdrawConfirm = document.getElementById('mi-withdraw-confirm');
+    const withdrawPoints = document.getElementById('mi-withdraw-points');
+
+    if (withdrawButton && withdrawOverlay && withdrawConfirm) {
+        function openWithdrawModal() {
+            if (withdrawPoints) {
+                withdrawPoints.textContent = Number(memberPointBalance || 0).toLocaleString('ko-KR') + '원';
+            }
+            withdrawOverlay.classList.add('is-open');
+        }
+
+        function closeWithdrawModal() {
+            withdrawOverlay.classList.remove('is-open');
+        }
+
+        withdrawButton.addEventListener('click', openWithdrawModal);
+        if (withdrawClose) {
+            withdrawClose.addEventListener('click', closeWithdrawModal);
+        }
+        if (withdrawCancel) {
+            withdrawCancel.addEventListener('click', closeWithdrawModal);
+        }
+        withdrawOverlay.addEventListener('click', function (event) {
+            if (event.target === withdrawOverlay) {
+                closeWithdrawModal();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeWithdrawModal();
+            }
+        });
+
+        withdrawConfirm.addEventListener('click', function () {
+            withdrawConfirm.disabled = true;
+            window.authFetch('/api/v1/members/me', { method: 'DELETE' })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('회원 탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                    }
+                    // 탈퇴 완료: 서버가 모든 Refresh 토큰을 폐기 → 토큰 삭제 후 완료 모달을 띄우고,
+                    // 사용자가 모달을 닫으면 홈으로 이동한다.
+                    window.clearAccessToken();
+                    closeWithdrawModal();
+                    redirectHomeOnResultClose = true;
+                    openResultModal('회원 탈퇴 완료', '회원 탈퇴가 완료되었습니다.');
+                })
+                .catch(function (err) {
+                    withdrawConfirm.disabled = false;
+                    closeWithdrawModal();
+                    openResultModal('탈퇴 실패', err && err.message ? err.message : '회원 탈퇴에 실패했습니다.');
                 });
         });
     }

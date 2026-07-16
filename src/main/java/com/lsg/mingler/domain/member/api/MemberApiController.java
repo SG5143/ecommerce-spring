@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -79,6 +80,15 @@ public class MemberApiController {
     public ResponseEntity<MemberUpdateResponse> changePassword(@AuthenticationPrincipal Long memberId, @RequestBody MemberPasswordUpdateRequest request) {
         memberService.changePassword(memberId, request);
         return ResponseEntity.ok(new MemberUpdateResponse("비밀번호가 변경되었습니다."));
+    }
+
+    /**
+     * 회원 탈퇴(소프트 삭제), 인증된 회원 본인만 접근 가능
+     */
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> withdraw(@AuthenticationPrincipal Long memberId) {
+        memberService.withdraw(memberId);
+        return ResponseEntity.noContent().build();
     }
 
 }

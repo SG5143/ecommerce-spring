@@ -187,6 +187,13 @@ public class Member {
         this.password = encodedPassword;
     }
 
+    /** 회원 탈퇴: 상태를 WITHDRAWN 으로 바꾸고 탈퇴 시각 기록, 보유 적립금 소멸 (레코드는 유지해 재가입 차단) */
+    public void withdraw() {
+        this.status = "WITHDRAWN";
+        this.withdrawnAt = LocalDateTime.now();
+        this.pointBalance = 0;
+    }
+
     /** 동의 여부 변경에 따른 동의 시각 계산: 미동의면 null, 새 동의면 now, 기존 동의 유지면 기존 시각 보존 */
     private static LocalDateTime resolveAgreedAt(Boolean previousAgreed, boolean nextAgreed, LocalDateTime previousAgreedAt, LocalDateTime now) {
         if (!nextAgreed) {

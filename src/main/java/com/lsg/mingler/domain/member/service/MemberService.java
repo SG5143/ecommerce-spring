@@ -97,7 +97,8 @@ public class MemberService {
                 Boolean.TRUE.equals(member.getMarketingAgreed()),
                 member.getEmail(),
                 Boolean.TRUE.equals(member.getEmailAgreed()),
-                Boolean.TRUE.equals(member.getSmsAgreed())
+                Boolean.TRUE.equals(member.getSmsAgreed()),
+                member.getPointBalance()
         );
     }
 
@@ -215,6 +216,19 @@ public class MemberService {
         member.changePassword(passwordEncoder.encode(request.newPassword()));
 
         // 비밀번호 변경은 보안 이벤트 → 발급된 모든 Refresh 토큰을 폐기해 전체 로그아웃 처리
+        authService.revokeAllTokens(memberId);
+    }
+
+    /**
+     * 회원 탈퇴(소프트 삭제). 레코드는 유지해 동일 아이디·SNS 재가입을 차단하고,
+     * 보유 적립금을 소멸시킨 뒤 모든 Refresh 토큰을 폐기해 전체 로그아웃한다.
+     */
+    @Transactional
+    public void withdraw(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
+
+        member.withdraw();
         authService.revokeAllTokens(memberId);
     }
 
