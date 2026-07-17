@@ -21,6 +21,11 @@ spring:
   mvc:
     log-resolved-exception: false
 
+# 시작 시 HikariCP 커넥션 풀의 실제 설정값(maximumPoolSize, autoCommit 등)을 로그로 출력
+logging:
+  level:
+    com.zaxxer.hikari.HikariConfig: debug
+
 # JWT 설정 (실제 secret 값은 application-local.yml 에 두고 git 에 올리지 않는다)
 # secret 은 HS256 서명용 256bit 이상 Base64 문자열이어야 한다.
 jwt:
