@@ -33,6 +33,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     overlay.addEventListener('click', closeDrawer);
 
+    drawer.addEventListener('click', function (event) {
+        const toggle = event.target.closest('.mobile-cat-toggle');
+        if (!toggle) {
+            return;
+        }
+        const group = toggle.closest('.mobile-nav-group');
+        const expanded = group.classList.toggle('is-expanded');
+        toggle.setAttribute('aria-expanded', String(expanded));
+    });
+
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {
             closeDrawer();

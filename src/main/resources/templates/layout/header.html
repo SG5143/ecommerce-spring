@@ -7,12 +7,18 @@
             <img th:src="@{/images/icons/ham-w.svg}" alt="" class="hamburger-icon"/>
         </button>
         <a class="logo" th:href="@{/}">Mingler</a>
-        <nav class="main-nav">
+        <nav class="main-nav" th:if="${not #lists.isEmpty(headerCategories)}">
             <ul>
-                <li><a th:href="@{/}">홈</a></li>
-                <li><a th:href="@{/categories}" class="not-implemented">카테고리</a></li>
-                <li><a th:href="@{/events}" class="not-implemented">이벤트</a></li>
-                <li><a th:href="@{/support}" class="not-implemented">고객센터</a></li>
+                <li class="has-dropdown" th:each="cat : ${headerCategories}">
+                    <a th:href="@{/categories/{id}(id=${cat.id})}" class="not-implemented"
+                       th:text="${cat.name}">카테고리</a>
+                    <ul class="dropdown-menu" th:if="${not #lists.isEmpty(cat.children)}">
+                        <li th:each="child : ${cat.children}">
+                            <a th:href="@{/categories/{id}(id=${child.id})}" class="not-implemented"
+                               th:text="${child.name}">하위 카테고리</a>
+                        </li>
+                    </ul>
+                </li>
             </ul>
         </nav>
         <div class="header-icons">
@@ -31,10 +37,21 @@
     <div class="mobile-nav-overlay" id="mobile-nav-overlay"></div>
     <nav class="mobile-nav-drawer" id="mobile-nav-drawer" aria-hidden="true">
         <ul>
-            <li><a th:href="@{/}">홈</a></li>
-            <li><a th:href="@{/categories}" class="not-implemented">카테고리</a></li>
-            <li><a th:href="@{/events}" class="not-implemented">이벤트</a></li>
-            <li><a th:href="@{/support}" class="not-implemented">고객센터</a></li>
+            <li class="mobile-nav-group" th:each="cat : ${headerCategories}">
+                <button type="button" class="mobile-cat-toggle" aria-expanded="false"
+                        th:if="${not #lists.isEmpty(cat.children)}">
+                    <span th:text="${cat.name}">카테고리</span>
+                    <span class="accordion-arrow" aria-hidden="true"></span>
+                </button>
+                <a th:href="@{/categories/{id}(id=${cat.id})}" class="not-implemented"
+                   th:unless="${not #lists.isEmpty(cat.children)}" th:text="${cat.name}">카테고리</a>
+                <ul class="mobile-subnav" th:if="${not #lists.isEmpty(cat.children)}">
+                    <li th:each="child : ${cat.children}">
+                        <a th:href="@{/categories/{id}(id=${child.id})}" class="not-implemented"
+                           th:text="${child.name}">하위 카테고리</a>
+                    </li>
+                </ul>
+            </li>
         </ul>
     </nav>
 
