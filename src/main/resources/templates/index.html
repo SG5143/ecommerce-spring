@@ -6,6 +6,7 @@
     <title>Mingler</title>
     <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/main.js}" defer></script>
 </head>
 <body>
 <div th:replace="~{layout/header :: header}"></div>
@@ -17,14 +18,59 @@
         <a th:href="@{/categories}" class="hero-button not-implemented">쇼핑하러 가기</a>
     </section>
 
-    <section class="product-section">
-        <h2 class="section-title">인기 상품</h2>
-        <div class="product-grid">
-            <div class="product-card" th:each="product : ${products}">
-                <img th:src="${product.imageUrl}" th:alt="${product.name}" class="product-image"/>
-                <p class="product-name" th:text="${product.name}">상품명</p>
-                <p class="product-price" th:text="${#numbers.formatInteger(product.price, 0, 'COMMA')} + '원'">0원</p>
+    <section class="product-section" aria-labelledby="popular-title">
+        <h2 class="section-title" id="popular-title">인기 상품</h2>
+        <div class="product-carousel">
+            <button type="button" class="carousel-btn carousel-btn-prev" aria-label="이전 상품" disabled>
+                <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
+            </button>
+            <div class="carousel-track">
+                <div class="product-card" th:each="product : ${popularProducts}">
+                    <div class="product-thumb">
+                        <span class="sale-badge" th:if="${product.onSale()}"
+                              th:text="${product.discountRate()} + '%'">20%</span>
+                        <img th:src="${product.imageUrl}" th:alt="${product.name}" class="product-image"/>
+                    </div>
+                    <p class="product-name" th:text="${product.name}">상품명</p>
+                    <p class="product-price">
+                        <span class="price-original" th:if="${product.onSale()}"
+                              th:text="${#numbers.formatInteger(product.price, 0, 'COMMA')} + '원'">0원</span>
+                        <span class="price-final"
+                              th:text="${#numbers.formatInteger(product.finalPrice(), 0, 'COMMA')} + '원'">0원</span>
+                    </p>
+                </div>
             </div>
+            <button type="button" class="carousel-btn carousel-btn-next" aria-label="다음 상품">
+                <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
+            </button>
+        </div>
+    </section>
+
+    <section class="product-section" aria-labelledby="new-title">
+        <h2 class="section-title" id="new-title">신상품</h2>
+        <div class="product-carousel">
+            <button type="button" class="carousel-btn carousel-btn-prev" aria-label="이전 상품" disabled>
+                <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
+            </button>
+            <div class="carousel-track">
+                <div class="product-card" th:each="product : ${newProducts}">
+                    <div class="product-thumb">
+                        <span class="sale-badge" th:if="${product.onSale()}"
+                              th:text="${product.discountRate()} + '%'">20%</span>
+                        <img th:src="${product.imageUrl}" th:alt="${product.name}" class="product-image"/>
+                    </div>
+                    <p class="product-name" th:text="${product.name}">상품명</p>
+                    <p class="product-price">
+                        <span class="price-original" th:if="${product.onSale()}"
+                              th:text="${#numbers.formatInteger(product.price, 0, 'COMMA')} + '원'">0원</span>
+                        <span class="price-final"
+                              th:text="${#numbers.formatInteger(product.finalPrice(), 0, 'COMMA')} + '원'">0원</span>
+                    </p>
+                </div>
+            </div>
+            <button type="button" class="carousel-btn carousel-btn-next" aria-label="다음 상품">
+                <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
+            </button>
         </div>
     </section>
 </main>
