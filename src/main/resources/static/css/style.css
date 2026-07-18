@@ -1218,7 +1218,7 @@ button {
         align-items: center;
         justify-content: center;
         position: absolute;
-        top: 50%;
+        top: 43%;
         transform: translateY(-50%);
         z-index: 1;
         width: 40px;
