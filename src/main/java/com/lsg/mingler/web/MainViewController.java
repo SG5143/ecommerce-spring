@@ -14,7 +14,8 @@ public class MainViewController {
 
     @GetMapping("/")
     public String index(Model model) {
-        model.addAttribute("products", productService.getMainProducts());
+        model.addAttribute("popularProducts", productService.getPopularProducts());
+        model.addAttribute("newProducts", productService.getNewProducts());
         return "index";
     }
 

@@ -14,14 +14,24 @@ public class ProductService {
 
     private final ProductRepository productRepository;
 
-    /** 메인화면 상품 카드 목록: 판매중 상품 최신순 8개 */
+    /** 메인화면 인기상품 카드 목록: 판매중 상품 판매량순 3개 */
     @Transactional(readOnly = true)
-    public List<ProductCard> getMainProducts() {
-        return productRepository.findTop8ByStatusOrderByCreatedAtDescIdDesc(Product.STATUS_ON_SALE)
-                .stream()
+    public List<ProductCard> getPopularProducts() {
+        return toCards(productRepository.findTop3ByStatusOrderBySalesCountDescIdDesc(Product.STATUS_ON_SALE));
+    }
+
+    /** 메인화면 신상품 카드 목록: 판매중 상품 최신순 3개 */
+    @Transactional(readOnly = true)
+    public List<ProductCard> getNewProducts() {
+        return toCards(productRepository.findTop3ByStatusOrderByCreatedAtDescIdDesc(Product.STATUS_ON_SALE));
+    }
+
+    private List<ProductCard> toCards(List<Product> products) {
+        return products.stream()
                 .map(product -> new ProductCard(
                         product.getName(),
-                        product.getDisplayPrice(),
+                        product.getPrice(),
+                        product.getSalePrice(),
                         product.getThumbnailUrl()))
                 .toList();
     }
