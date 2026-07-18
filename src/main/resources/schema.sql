@@ -95,6 +95,7 @@ CREATE TABLE `product`
     PRIMARY KEY (`id`),
     KEY              `idx_product_category` (`category_id`),
     KEY              `idx_product_status_created` (`status`,`created_at`),
+    KEY              `idx_product_status_sales` (`status`,`sales_count`),
     CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `category` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=37 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='상품';
 
