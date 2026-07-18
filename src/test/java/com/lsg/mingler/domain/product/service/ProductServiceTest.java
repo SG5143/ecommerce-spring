@@ -36,45 +36,63 @@ class ProductServiceTest {
     }
 
     @Test
-    void 메인화면_상품은_판매중_상태로_조회한다() {
-        when(productRepository.findTop8ByStatusOrderByCreatedAtDescIdDesc("ON_SALE"))
+    void 인기상품은_판매량순_상위3개를_판매중_상태로_조회한다() {
+        when(productRepository.findTop3ByStatusOrderBySalesCountDescIdDesc("ON_SALE"))
                 .thenReturn(List.of());
 
-        productService.getMainProducts();
+        productService.getPopularProducts();
 
-        verify(productRepository).findTop8ByStatusOrderByCreatedAtDescIdDesc("ON_SALE");
+        verify(productRepository).findTop3ByStatusOrderBySalesCountDescIdDesc("ON_SALE");
     }
 
     @Test
-    void 할인가가_있으면_할인가가_카드_가격이_된다() {
-        Product product = sampleProduct("캐시미어 니트", 89000, 69000, "https://placehold.co/300x300?text=Knit");
-        when(productRepository.findTop8ByStatusOrderByCreatedAtDescIdDesc("ON_SALE"))
+    void 신상품은_최신순_상위3개를_판매중_상태로_조회한다() {
+        when(productRepository.findTop3ByStatusOrderByCreatedAtDescIdDesc("ON_SALE"))
+                .thenReturn(List.of());
+
+        productService.getNewProducts();
+
+        verify(productRepository).findTop3ByStatusOrderByCreatedAtDescIdDesc("ON_SALE");
+    }
+
+    @Test
+    void 할인가가_있으면_세일_상태와_할인가_할인율이_카드에_담긴다() {
+        Product product = sampleProduct("트래블 더플백", 89000, 71000, "https://placehold.co/300x300?text=Dufflebag");
+        when(productRepository.findTop3ByStatusOrderBySalesCountDescIdDesc("ON_SALE"))
                 .thenReturn(List.of(product));
 
-        List<ProductCard> cards = productService.getMainProducts();
+        List<ProductCard> cards = productService.getPopularProducts();
 
         assertThat(cards).hasSize(1);
-        assertThat(cards.get(0).price()).isEqualTo(69000);
+        ProductCard card = cards.get(0);
+        assertThat(card.onSale()).isTrue();
+        assertThat(card.price()).isEqualTo(89000);
+        assertThat(card.salePrice()).isEqualTo(71000);
+        assertThat(card.finalPrice()).isEqualTo(71000);
+        assertThat(card.discountRate()).isEqualTo(20);
     }
 
     @Test
-    void 할인가가_없으면_정가가_카드_가격이_된다() {
+    void 할인가가_없으면_세일이_아니고_정가가_최종_가격이_된다() {
         Product product = sampleProduct("울 코트", 158000, null, "https://placehold.co/300x300?text=Coat");
-        when(productRepository.findTop8ByStatusOrderByCreatedAtDescIdDesc("ON_SALE"))
+        when(productRepository.findTop3ByStatusOrderBySalesCountDescIdDesc("ON_SALE"))
                 .thenReturn(List.of(product));
 
-        List<ProductCard> cards = productService.getMainProducts();
+        List<ProductCard> cards = productService.getPopularProducts();
 
-        assertThat(cards.get(0).price()).isEqualTo(158000);
+        ProductCard card = cards.get(0);
+        assertThat(card.onSale()).isFalse();
+        assertThat(card.salePrice()).isNull();
+        assertThat(card.finalPrice()).isEqualTo(158000);
     }
 
     @Test
     void 상품_이름과_썸네일이_카드에_매핑된다() {
         Product product = sampleProduct("데일리 백팩", 65000, null, "https://placehold.co/300x300?text=Backpack");
-        when(productRepository.findTop8ByStatusOrderByCreatedAtDescIdDesc("ON_SALE"))
+        when(productRepository.findTop3ByStatusOrderBySalesCountDescIdDesc("ON_SALE"))
                 .thenReturn(List.of(product));
 
-        List<ProductCard> cards = productService.getMainProducts();
+        List<ProductCard> cards = productService.getPopularProducts();
 
         assertThat(cards.get(0).name()).isEqualTo("데일리 백팩");
         assertThat(cards.get(0).imageUrl()).isEqualTo("https://placehold.co/300x300?text=Backpack");
@@ -82,12 +100,13 @@ class ProductServiceTest {
 
     @Test
     void 판매중_상품이_없으면_빈_목록을_반환한다() {
-        when(productRepository.findTop8ByStatusOrderByCreatedAtDescIdDesc("ON_SALE"))
+        when(productRepository.findTop3ByStatusOrderBySalesCountDescIdDesc("ON_SALE"))
+                .thenReturn(List.of());
+        when(productRepository.findTop3ByStatusOrderByCreatedAtDescIdDesc("ON_SALE"))
                 .thenReturn(List.of());
 
-        List<ProductCard> cards = productService.getMainProducts();
-
-        assertThat(cards).isEmpty();
+        assertThat(productService.getPopularProducts()).isEmpty();
+        assertThat(productService.getNewProducts()).isEmpty();
     }
 
 }
