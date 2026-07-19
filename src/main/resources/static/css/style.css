@@ -322,7 +322,7 @@ button {
 
 /* Hero banner */
 .hero-banner {
-    background: linear-gradient(135deg, #ff8a65, #ff5722);
+    background: linear-gradient(135deg, #9d7c72, #282828);
     color: #fff;
     text-align: center;
     padding: 80px 24px;
@@ -352,7 +352,7 @@ button {
 .product-section {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 48px 24px;
+    padding: 32px 24px;
 }
 
 .section-title {
@@ -363,7 +363,7 @@ button {
 .product-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 24px;
+    gap: 14px;
 }
 
 .product-carousel {
@@ -383,7 +383,6 @@ button {
 .product-card {
     background-color: #fff;
     overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
     transition: transform 0.15s ease;
 }
 
@@ -421,14 +420,14 @@ button {
 }
 
 .product-price {
-    margin: 0 18px 20px;
+    margin: 0 18px 10px;
 }
 
 .price-original {
     display: block;
     width: fit-content;
     position: relative;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 400;
     color: #999;
 }
@@ -444,21 +443,21 @@ button {
 }
 
 .price-final {
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 700;
 }
 
 .category-page {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 48px 24px;
+    padding: 24px 24px 100px;
 }
 
 .breadcrumb {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 24px;
+    margin-bottom: 40px;
     font-size: 22px;
     font-weight: 700;
 }
@@ -473,8 +472,10 @@ button {
 }
 
 .breadcrumb-sep {
-    color: #999;
-    font-weight: 400;
+    width: 12px;
+    height: 12px;
+    transform: rotate(-90deg);
+    opacity: 0.45;
 }
 
 .category-empty {

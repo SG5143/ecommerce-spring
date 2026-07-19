@@ -15,7 +15,7 @@
         <a th:if="${category.hasParent()}" class="breadcrumb-parent"
            th:href="@{/categories/{id}(id=${category.parentId})}"
            th:text="${category.parentName}">의류</a>
-        <span th:if="${category.hasParent()}" class="breadcrumb-sep" aria-hidden="true">&gt;</span>
+        <img th:if="${category.hasParent()}" class="breadcrumb-sep" th:src="@{/images/icons/main-slide-btn.svg}" alt="" aria-hidden="true"/>
         <span class="breadcrumb-current" th:text="${category.name}">상의</span>
     </nav>
 
