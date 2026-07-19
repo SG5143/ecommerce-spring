@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="'Mingler | ' + ${category.name}">Mingler</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="category-page">
+    <nav class="breadcrumb" aria-label="현재 위치">
+        <a th:if="${category.hasParent()}" class="breadcrumb-parent"
+           th:href="@{/categories/{id}(id=${category.parentId})}"
+           th:text="${category.parentName}">의류</a>
+        <span th:if="${category.hasParent()}" class="breadcrumb-sep" aria-hidden="true">&gt;</span>
+        <span class="breadcrumb-current" th:text="${category.name}">상의</span>
+    </nav>
+
+    <div class="product-grid" th:if="${not #lists.isEmpty(products)}">
+        <div class="product-card" th:each="product : ${products}">
+            <div class="product-thumb">
+                <span class="sale-badge" th:if="${product.onSale()}"
+                      th:text="${product.discountRate()} + '%'">20%</span>
+                <img th:src="${product.imageUrl}" th:alt="${product.name}" class="product-image"/>
+            </div>
+            <p class="product-name" th:text="${product.name}">상품명</p>
+            <p class="product-price">
+                <span class="price-original" th:if="${product.onSale()}"
+                      th:text="${#numbers.formatInteger(product.price, 0, 'COMMA')} + '원'">0원</span>
+                <span class="price-final"
+                      th:text="${#numbers.formatInteger(product.finalPrice(), 0, 'COMMA')} + '원'">0원</span>
+            </p>
+        </div>
+    </div>
+
+    <p class="category-empty" th:if="${#lists.isEmpty(products)}">등록된 상품이 없습니다.</p>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>

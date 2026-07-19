@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 전역 예외 처리. 예외를 응답으로 변환하는 동시에 로깅 레벨을 직접 관리
@@ -31,6 +32,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException e) {
         log.info("인증 실패 (401): {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(e.getMessage()));
+    }
+
+    /**
+     * 상태코드를 지정해 던진 예외(카테고리 미존재 404 등)는 그 상태코드를 그대로 응답.
+     * catch-all 이 500 으로 덮어쓰지 않도록 별도 처리
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatus(ResponseStatusException e) {
+        log.info("요청 실패 ({}): {}", e.getStatusCode().value(), e.getReason());
+        return ResponseEntity.status(e.getStatusCode()).body(new ErrorResponse(e.getReason()));
     }
 
     /**

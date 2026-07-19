@@ -10,11 +10,11 @@
         <nav class="main-nav" th:if="${not #lists.isEmpty(headerCategories)}">
             <ul>
                 <li class="has-dropdown" th:each="cat : ${headerCategories}">
-                    <a th:href="@{/categories/{id}(id=${cat.id})}" class="not-implemented"
+                    <a th:href="@{/categories/{id}(id=${cat.id})}"
                        th:text="${cat.name}">카테고리</a>
                     <ul class="dropdown-menu" th:if="${not #lists.isEmpty(cat.children)}">
                         <li th:each="child : ${cat.children}">
-                            <a th:href="@{/categories/{id}(id=${child.id})}" class="not-implemented"
+                            <a th:href="@{/categories/{id}(id=${child.id})}"
                                th:text="${child.name}">하위 카테고리</a>
                         </li>
                     </ul>
@@ -43,11 +43,11 @@
                     <span th:text="${cat.name}">카테고리</span>
                     <span class="accordion-arrow" aria-hidden="true"></span>
                 </button>
-                <a th:href="@{/categories/{id}(id=${cat.id})}" class="not-implemented"
+                <a th:href="@{/categories/{id}(id=${cat.id})}"
                    th:unless="${not #lists.isEmpty(cat.children)}" th:text="${cat.name}">카테고리</a>
                 <ul class="mobile-subnav" th:if="${not #lists.isEmpty(cat.children)}">
                     <li th:each="child : ${cat.children}">
-                        <a th:href="@{/categories/{id}(id=${child.id})}" class="not-implemented"
+                        <a th:href="@{/categories/{id}(id=${child.id})}"
                            th:text="${child.name}">하위 카테고리</a>
                     </li>
                 </ul>

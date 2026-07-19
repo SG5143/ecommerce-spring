@@ -26,6 +26,13 @@ public class ProductService {
         return toCards(productRepository.findTop3ByStatusOrderByCreatedAtDescIdDesc(Product.STATUS_ON_SALE));
     }
 
+    /** 카테고리 목록 페이지: 해당 카테고리들의 판매중 상품 최신순 전체 */
+    @Transactional(readOnly = true)
+    public List<ProductCard> getCategoryProducts(List<Long> categoryIds) {
+        return toCards(productRepository.findByCategoryIdInAndStatusOrderByCreatedAtDescIdDesc(
+                categoryIds, Product.STATUS_ON_SALE));
+    }
+
     private List<ProductCard> toCards(List<Product> products) {
         return products.stream()
                 .map(product -> new ProductCard(
