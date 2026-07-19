@@ -2,16 +2,21 @@ package com.lsg.mingler.domain.product.service;
 
 import com.lsg.mingler.domain.product.dao.CategoryRepository;
 import com.lsg.mingler.domain.product.dto.CategoryMenu;
+import com.lsg.mingler.domain.product.dto.CategoryPage;
 import com.lsg.mingler.domain.product.entity.Category;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -113,6 +118,47 @@ class CategoryServiceTest {
 
         assertThat(menus).isEmpty();
         verify(categoryRepository).findAllByIsActiveTrueOrderByDisplayOrderAscIdAsc();
+    }
+
+    @Test
+    void 리프_카테고리면_부모명을_담고_자기_id만_상품_조회_대상이_된다() {
+        when(categoryRepository.findByIdAndIsActiveTrue(3L))
+                .thenReturn(Optional.of(category(3L, 1L, "상의", 1)));
+        when(categoryRepository.findByIdAndIsActiveTrue(1L))
+                .thenReturn(Optional.of(category(1L, null, "의류", 1)));
+        when(categoryRepository.findAllByParentIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(3L))
+                .thenReturn(List.of());
+
+        CategoryPage page = categoryService.getCategoryPage(3L);
+
+        assertThat(page.name()).isEqualTo("상의");
+        assertThat(page.parentId()).isEqualTo(1L);
+        assertThat(page.parentName()).isEqualTo("의류");
+        assertThat(page.hasParent()).isTrue();
+        assertThat(page.productCategoryIds()).containsExactly(3L);
+    }
+
+    @Test
+    void 최상위_카테고리면_부모명이_없고_자식_id들이_상품_조회_대상에_포함된다() {
+        when(categoryRepository.findByIdAndIsActiveTrue(1L))
+                .thenReturn(Optional.of(category(1L, null, "의류", 1)));
+        when(categoryRepository.findAllByParentIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
+                .thenReturn(List.of(category(3L, 1L, "상의", 1), category(4L, 1L, "하의", 2)));
+
+        CategoryPage page = categoryService.getCategoryPage(1L);
+
+        assertThat(page.parentName()).isNull();
+        assertThat(page.hasParent()).isFalse();
+        assertThat(page.productCategoryIds()).containsExactly(1L, 3L, 4L);
+    }
+
+    @Test
+    void 없거나_비활성인_카테고리면_404_예외를_던진다() {
+        when(categoryRepository.findByIdAndIsActiveTrue(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> categoryService.getCategoryPage(99L))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
 }

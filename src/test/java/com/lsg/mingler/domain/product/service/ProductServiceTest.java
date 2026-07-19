@@ -56,6 +56,18 @@ class ProductServiceTest {
     }
 
     @Test
+    void 카테고리_상품은_판매중_상태로_최신순_조회한다() {
+        when(productRepository.findByCategoryIdInAndStatusOrderByCreatedAtDescIdDesc(List.of(1L, 3L, 4L), "ON_SALE"))
+                .thenReturn(List.of(sampleProduct("울 코트", 158000, null, "https://placehold.co/300x300?text=Coat")));
+
+        List<ProductCard> cards = productService.getCategoryProducts(List.of(1L, 3L, 4L));
+
+        assertThat(cards).hasSize(1);
+        assertThat(cards.get(0).name()).isEqualTo("울 코트");
+        verify(productRepository).findByCategoryIdInAndStatusOrderByCreatedAtDescIdDesc(List.of(1L, 3L, 4L), "ON_SALE");
+    }
+
+    @Test
     void 할인가가_있으면_세일_상태와_할인가_할인율이_카드에_담긴다() {
         Product product = sampleProduct("트래블 더플백", 89000, 71000, "https://placehold.co/300x300?text=Dufflebag");
         when(productRepository.findTop3ByStatusOrderBySalesCountDescIdDesc("ON_SALE"))
