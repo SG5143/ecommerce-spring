@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -34,12 +35,15 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // SSR 페이지 & 정적 리소스
-                        .requestMatchers("/", "/login", "/signup", "/myshop", "/myshop/**", "/categories/**", "/products/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/", "/login", "/signup", "/cart", "/myshop", "/myshop/**", "/categories/**", "/products/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                         // 회원 본인 정보(요약·상세)는 인증 필요
                         .requestMatchers("/api/v1/members/me", "/api/v1/members/me/**").authenticated()
                         // 인증 불필요 API: 회원가입/아이디 중복확인, 로그인/재발급/로그아웃
                         .requestMatchers("/api/v1/members/**").permitAll()
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/reissue", "/api/v1/auth/logout").permitAll()
+                        // 장바구니는 회원·비회원 공용. 병합만 로그인 회원으로 제한
+                        .requestMatchers(HttpMethod.POST, "/api/v1/cart/merge").authenticated()
+                        .requestMatchers("/api/v1/cart", "/api/v1/cart/**").permitAll()
                         // 그 외 API 는 인증 필요 (ADMIN 전용 경로는 향후 hasRole 규칙 추가 예정)
                         .anyRequest().authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)

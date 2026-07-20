@@ -134,6 +134,58 @@ CREATE TABLE `product_option`
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='상품 옵션 (상품당 다중, 없으면 단일 구성 상품)';
 
 
+-- 장바구니 상품의 product_id와 product_option_id 조합을 외래키로 검증하기 위한 보조 키
+ALTER TABLE `product_option`
+    ADD UNIQUE KEY `uk_product_option_id_product` (`id`,`product_id`);
+
+
+-- mingler.cart definition
+
+CREATE TABLE `cart`
+(
+    `id`               bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '고유식별자',
+    `member_id`        bigint unsigned DEFAULT NULL COMMENT '회원 장바구니 소유자',
+    `guest_token_hash` char(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT '비회원 식별 토큰 SHA-256',
+    `expires_at`       datetime DEFAULT NULL COMMENT '비회원 장바구니 만료시각',
+    `created_at`       datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일시',
+    `updated_at`       datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_cart_member` (`member_id`),
+    UNIQUE KEY `uk_cart_guest_token_hash` (`guest_token_hash`),
+    KEY `idx_cart_expires_at` (`expires_at`),
+    CONSTRAINT `fk_cart_member` FOREIGN KEY (`member_id`) REFERENCES `member` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `chk_cart_owner` CHECK (
+        (`member_id` IS NOT NULL AND `guest_token_hash` IS NULL AND `expires_at` IS NULL)
+        OR (`member_id` IS NULL AND `guest_token_hash` IS NOT NULL AND `expires_at` IS NOT NULL)
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='회원·비회원 장바구니';
+
+
+-- mingler.cart_item definition
+
+CREATE TABLE `cart_item`
+(
+    `id`                  bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '고유식별자',
+    `cart_id`             bigint unsigned NOT NULL COMMENT '장바구니',
+    `product_id`          bigint unsigned NOT NULL COMMENT '상품',
+    `product_option_id`   bigint unsigned DEFAULT NULL COMMENT '상품 옵션, 단일 구성은 NULL',
+    `option_identity`     bigint unsigned GENERATED ALWAYS AS (IFNULL(`product_option_id`, 0)) STORED COMMENT 'NULL 옵션 중복 방지용 식별자',
+    `quantity`            smallint unsigned NOT NULL COMMENT '수량',
+    `unit_price_at_added` int unsigned NOT NULL COMMENT '처음 담을 당시 옵션 포함 단가',
+    `created_at`          datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '담은 일시',
+    `updated_at`          datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_cart_item_variant` (`cart_id`,`product_id`,`option_identity`),
+    KEY `idx_cart_item_product` (`product_id`),
+    KEY `idx_cart_item_option_product` (`product_option_id`,`product_id`),
+    CONSTRAINT `fk_cart_item_cart` FOREIGN KEY (`cart_id`) REFERENCES `cart` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_cart_item_product` FOREIGN KEY (`product_id`) REFERENCES `product` (`id`),
+    CONSTRAINT `fk_cart_item_option_product` FOREIGN KEY (`product_option_id`,`product_id`)
+        REFERENCES `product_option` (`id`,`product_id`),
+    CONSTRAINT `chk_cart_item_quantity` CHECK (`quantity` BETWEEN 1 AND 99)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='장바구니 상품';
+
+
 -- mingler.refresh_token definition
 
 CREATE TABLE `refresh_token`
