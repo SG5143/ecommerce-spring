@@ -112,9 +112,8 @@ public class CartService {
         }
 
         Cart cart = requireCart(memberId, guestTokenHash);
-        boolean ownsAllItems = distinctIds.stream()
-                .allMatch(id -> cartItemRepository.findByCartIdAndId(cart.getId(), id).isPresent());
-        if (!ownsAllItems) {
+        List<CartItem> ownedItems = cartItemRepository.findAllByCartIdAndIdIn(cart.getId(), distinctIds);
+        if (ownedItems.size() != distinctIds.size()) {
             throw notFound("장바구니 상품을 찾을 수 없습니다.");
         }
         cartItemRepository.deleteAllByCartIdAndIdIn(cart.getId(), distinctIds);

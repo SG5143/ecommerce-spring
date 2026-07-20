@@ -13,6 +13,8 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
 
     List<CartItem> findAllByCartIdOrderByCreatedAtAscIdAsc(Long cartId);
 
+    List<CartItem> findAllByCartIdAndIdIn(Long cartId, Collection<Long> ids);
+
     Optional<CartItem> findByCartIdAndId(Long cartId, Long id);
 
     @Query("""

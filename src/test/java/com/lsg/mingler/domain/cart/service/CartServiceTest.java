@@ -13,6 +13,7 @@ import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -132,6 +133,53 @@ class CartServiceTest {
         assertThatThrownBy(() -> cartService.updateQuantity(7L, null, 999L, 2))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("장바구니 상품을 찾을 수 없습니다");
+    }
+
+    @Test
+    void 여러_장바구니_항목을_삭제할_때_소유권을_한_번에_조회한다() {
+        Cart cart = memberCart(1L, 7L);
+        CartItem firstItem = cartItem(100L, 1L, 10L, null, 1, 10000);
+        CartItem secondItem = cartItem(101L, 1L, 11L, null, 1, 12000);
+        when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findAllByCartIdAndIdIn(1L, Set.of(100L, 101L)))
+                .thenReturn(List.of(firstItem, secondItem));
+        when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L)).thenReturn(List.of());
+
+        CartResponse response = cartService.deleteItems(7L, null, List.of(100L, 101L));
+
+        assertThat(response.items()).isEmpty();
+        verify(cartItemRepository).findAllByCartIdAndIdIn(1L, Set.of(100L, 101L));
+        verify(cartItemRepository).deleteAllByCartIdAndIdIn(1L, Set.of(100L, 101L));
+        verify(cartItemRepository, never()).findByCartIdAndId(any(), any());
+    }
+
+    @Test
+    void 삭제_항목_중_현재_장바구니에_없는_항목이_있으면_삭제하지_않는다() {
+        Cart cart = memberCart(1L, 7L);
+        CartItem ownedItem = cartItem(100L, 1L, 10L, null, 1, 10000);
+        when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findAllByCartIdAndIdIn(1L, Set.of(100L, 999L)))
+                .thenReturn(List.of(ownedItem));
+
+        assertThatThrownBy(() -> cartService.deleteItems(7L, null, List.of(100L, 999L)))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("장바구니 상품을 찾을 수 없습니다");
+
+        verify(cartItemRepository, never()).deleteAllByCartIdAndIdIn(any(), any());
+    }
+
+    @Test
+    void 중복된_삭제_항목_ID는_한_번만_검증하고_삭제한다() {
+        Cart cart = memberCart(1L, 7L);
+        CartItem item = cartItem(100L, 1L, 10L, null, 1, 10000);
+        when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findAllByCartIdAndIdIn(1L, Set.of(100L))).thenReturn(List.of(item));
+        when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L)).thenReturn(List.of());
+
+        cartService.deleteItems(7L, null, List.of(100L, 100L));
+
+        verify(cartItemRepository).findAllByCartIdAndIdIn(1L, Set.of(100L));
+        verify(cartItemRepository).deleteAllByCartIdAndIdIn(1L, Set.of(100L));
     }
 
     @Test
