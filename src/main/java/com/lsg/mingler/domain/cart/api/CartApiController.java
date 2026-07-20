@@ -42,8 +42,8 @@ public class CartApiController {
     public ResponseEntity<CartCountResponse> getCartCount(
             Authentication authentication,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken) {
-        CartResponse cart = cartService.getCart(memberId(authentication), hash(guestToken));
-        return ResponseEntity.ok(new CartCountResponse(cart.totalQuantity()));
+        int totalQuantity = cartService.getCartCount(memberId(authentication), hash(guestToken));
+        return ResponseEntity.ok(new CartCountResponse(totalQuantity));
     }
 
     @PostMapping("/items")

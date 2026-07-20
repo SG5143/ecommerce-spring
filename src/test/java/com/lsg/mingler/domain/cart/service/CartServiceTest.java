@@ -281,13 +281,53 @@ class CartServiceTest {
     }
 
     @Test
-    void 장바구니_조회는_읽기_전용_트랜잭션을_사용한다() throws NoSuchMethodException {
-        Transactional transactional = CartService.class
+    void 장바구니_조회_메서드는_읽기_전용_트랜잭션을_사용한다() throws NoSuchMethodException {
+        Transactional cartTransactional = CartService.class
                 .getDeclaredMethod("getCart", Long.class, String.class)
                 .getAnnotation(Transactional.class);
+        Transactional countTransactional = CartService.class
+                .getDeclaredMethod("getCartCount", Long.class, String.class)
+                .getAnnotation(Transactional.class);
 
-        assertThat(transactional).isNotNull();
-        assertThat(transactional.readOnly()).isTrue();
+        assertThat(cartTransactional).isNotNull();
+        assertThat(cartTransactional.readOnly()).isTrue();
+        assertThat(countTransactional).isNotNull();
+        assertThat(countTransactional.readOnly()).isTrue();
+    }
+
+    @Test
+    void 장바구니_전체_응답_없이_저장된_상품_수량_합계만_조회한다() {
+        Cart cart = memberCart(1L, 7L);
+        when(cartRepository.findByMemberId(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.sumQuantityByCartId(1L)).thenReturn(7L);
+
+        int count = cartService.getCartCount(7L, null);
+
+        assertThat(count).isEqualTo(7);
+        verify(cartItemRepository).sumQuantityByCartId(1L);
+        verify(cartItemRepository, never()).findAllByCartIdOrderByCreatedAtAscIdAsc(any());
+        verify(productRepository, never()).findAllById(any());
+        verify(productOptionRepository, never()).findAllById(any());
+    }
+
+    @Test
+    void 장바구니_식별_정보가_없으면_상품_수량은_0이다() {
+        int count = cartService.getCartCount(null, null);
+
+        assertThat(count).isZero();
+        verify(cartItemRepository, never()).sumQuantityByCartId(any());
+    }
+
+    @Test
+    void 만료된_비회원_장바구니의_상품_수량은_0이고_별도_트랜잭션으로_정리한다() {
+        Cart expiredCart = expiredGuestCart(1L);
+        when(cartRepository.findByGuestTokenHash("hash")).thenReturn(Optional.of(expiredCart));
+
+        int count = cartService.getCartCount(null, "hash");
+
+        assertThat(count).isZero();
+        verify(cartExpirationService).deleteExpiredGuestCart(eq(1L), any(LocalDateTime.class));
+        verify(cartItemRepository, never()).sumQuantityByCartId(any());
     }
 
     @Test

@@ -65,6 +65,21 @@ public class CartService {
     }
 
     /**
+     * 식별 정보에 해당하는 장바구니의 전체 상품 수량만 조회한다.
+     * 장바구니가 없거나 만료된 경우에는 0을 반환한다.
+     *
+     * @param memberId 로그인 회원 ID. 비회원이면 {@code null}
+     * @param guestTokenHash 비회원 장바구니 토큰 해시. 회원이면 {@code null}
+     * @return 모든 장바구니 항목의 수량 합계
+     */
+    @Transactional(readOnly = true)
+    public int getCartCount(Long memberId, String guestTokenHash) {
+        Optional<Cart> cart = findCart(memberId, guestTokenHash, false);
+        return cart.map(value -> Math.toIntExact(cartItemRepository.sumQuantityByCartId(value.getId())))
+                .orElse(0);
+    }
+
+    /**
      * 요청 상품을 검증한 뒤 기존 동일 상품·옵션에는 수량을 합산하고, 없으면 새 행으로 추가한다.
      *
      * @param memberId 로그인 회원 ID. 비회원이면 {@code null}
