@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -145,6 +146,7 @@ class ProductServiceTest {
     @Test
     void 상품_상세는_이미지와_옵션을_정렬된_순서로_담는다() {
         Product product = sampleProduct("캐시미어 블렌드 라운드넥 니트", 89000, 69000, "https://placehold.co/300x300?text=Knit+1");
+        when(productRepository.increaseViewCount(1L, Product.STATUS_HIDDEN)).thenReturn(1);
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L))
                 .thenReturn(List.of(sampleImage("https://placehold.co/300x300?text=Knit+1", 0),
@@ -167,6 +169,7 @@ class ProductServiceTest {
     @Test
     void 이미지가_없으면_썸네일이_대표_이미지가_된다() {
         Product product = sampleProduct("울 코트", 158000, null, "https://placehold.co/300x300?text=Coat");
+        when(productRepository.increaseViewCount(1L, Product.STATUS_HIDDEN)).thenReturn(1);
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L)).thenReturn(List.of());
         when(productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
@@ -179,8 +182,9 @@ class ProductServiceTest {
     }
 
     @Test
-    void 상세_조회는_조회수를_1_증가시킨다() {
+    void 상세_조회는_조회수를_원자적으로_1_증가시킨다() {
         Product product = sampleProduct("울 코트", 158000, null, "https://placehold.co/300x300?text=Coat");
+        when(productRepository.increaseViewCount(1L, Product.STATUS_HIDDEN)).thenReturn(1);
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L)).thenReturn(List.of());
         when(productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
@@ -188,13 +192,14 @@ class ProductServiceTest {
 
         productService.getProductDetail(1L);
 
-        assertThat(product.getViewCount()).isEqualTo(1);
+        verify(productRepository).increaseViewCount(1L, Product.STATUS_HIDDEN);
     }
 
     @Test
     void 품절_상품_상세는_soldOut이_true다() {
         Product product = sampleProduct("린넨 반팔 셔츠", 39000, null, "https://placehold.co/300x300?text=Linen+Shirt+1");
         ReflectionTestUtils.setField(product, "status", Product.STATUS_SOLD_OUT);
+        when(productRepository.increaseViewCount(1L, Product.STATUS_HIDDEN)).thenReturn(1);
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L)).thenReturn(List.of());
         when(productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
@@ -207,22 +212,24 @@ class ProductServiceTest {
 
     @Test
     void 숨김_상품_상세_조회는_404_예외를_던진다() {
-        Product product = sampleProduct("울 코트", 158000, null, "https://placehold.co/300x300?text=Coat");
-        ReflectionTestUtils.setField(product, "status", Product.STATUS_HIDDEN);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productRepository.increaseViewCount(1L, Product.STATUS_HIDDEN)).thenReturn(0);
 
         assertThatThrownBy(() -> productService.getProductDetail(1L))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("상품을 찾을 수 없습니다.");
+
+        verifyNoInteractions(productImageRepository, productOptionRepository);
     }
 
     @Test
     void 없는_상품_상세_조회는_404_예외를_던진다() {
-        when(productRepository.findById(999L)).thenReturn(Optional.empty());
+        when(productRepository.increaseViewCount(999L, Product.STATUS_HIDDEN)).thenReturn(0);
 
         assertThatThrownBy(() -> productService.getProductDetail(999L))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("상품을 찾을 수 없습니다.");
+
+        verifyNoInteractions(productImageRepository, productOptionRepository);
     }
 
     @Test

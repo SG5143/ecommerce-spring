@@ -44,11 +44,13 @@ public class ProductService {
     /** 상품 상세 페이지: 숨김 상품은 404, 조회수 1 증가, 이미지·활성 옵션 포함 */
     @Transactional
     public ProductDetail getProductDetail(Long id) {
-        Product product = productRepository.findById(id)
-                .filter(found -> !Product.STATUS_HIDDEN.equals(found.getStatus()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다."));
+        int updatedRows = productRepository.increaseViewCount(id, Product.STATUS_HIDDEN);
+        if (updatedRows == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다.");
+        }
 
-        product.increaseViewCount();
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다."));
 
         List<String> imageUrls = productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(id).stream()
                 .map(ProductImage::getImageUrl)
