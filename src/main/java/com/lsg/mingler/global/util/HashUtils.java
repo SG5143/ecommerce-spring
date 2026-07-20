@@ -1,14 +1,12 @@
 package com.lsg.mingler.global.util;
 
-import lombok.RequiredArgsConstructor;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-
-@RequiredArgsConstructor
 public final class HashUtils {
+
+    private HashUtils() {}
 
     public static String sha256Hex(String value) {
         try {
