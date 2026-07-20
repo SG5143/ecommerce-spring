@@ -21,6 +21,12 @@ class GuestCartTokenManagerTest {
     void 원문_토큰은_SHA256_해시로_변환된다() {
         String hash = tokenManager.hash("guest-token");
 
-        assertThat(hash).hasSize(64).doesNotContain("guest-token");
+        assertThat(hash).isEqualTo("1da7e95ba163e2a04fb0079b15fcaebfeec45f916e108f2b799f5b8cead9e46c");
+    }
+
+    @Test
+    void null과_공백_토큰은_해싱하지_않는다() {
+        assertThat(tokenManager.hash(null)).isNull();
+        assertThat(tokenManager.hash(" ")).isNull();
     }
 }

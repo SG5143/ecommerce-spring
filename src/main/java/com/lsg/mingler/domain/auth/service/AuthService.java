@@ -10,11 +10,9 @@ import com.lsg.mingler.domain.member.entity.Member;
 import com.lsg.mingler.global.error.AuthenticationException;
 import com.lsg.mingler.global.jwt.JwtProperties;
 import com.lsg.mingler.global.jwt.JwtTokenProvider;
+import com.lsg.mingler.global.util.HashUtils;
 import jakarta.servlet.http.HttpServletResponse;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -93,7 +91,7 @@ public class AuthService {
             throw new AuthenticationException("인증 정보가 없습니다. 다시 로그인해주세요.");
         }
 
-        RefreshToken stored = refreshTokenRepository.findByTokenHash(hashToken(refreshTokenValue))
+        RefreshToken stored = refreshTokenRepository.findByTokenHash(HashUtils.sha256Hex(refreshTokenValue))
                 .orElseThrow(() -> new AuthenticationException("유효하지 않은 인증 정보입니다. 다시 로그인해주세요."));
 
         if (stored.isRevoked()) {
@@ -121,7 +119,7 @@ public class AuthService {
      */
     public void logout(String refreshTokenValue, HttpServletResponse response) {
         if (refreshTokenValue != null && !refreshTokenValue.isBlank()) {
-            refreshTokenRepository.findByTokenHash(hashToken(refreshTokenValue))
+            refreshTokenRepository.findByTokenHash(HashUtils.sha256Hex(refreshTokenValue))
                     .ifPresent(token -> {
                         token.revoke();
                         refreshTokenRepository.save(token);
@@ -139,7 +137,7 @@ public class AuthService {
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .memberId(memberId)
-                .tokenHash(hashToken(rawToken))
+                .tokenHash(HashUtils.sha256Hex(rawToken))
                 .expiresAt(LocalDateTime.now().plus(validity))
                 .build();
         refreshTokenRepository.save(refreshToken);
@@ -184,24 +182,6 @@ public class AuthService {
         byte[] bytes = new byte[REFRESH_TOKEN_BYTES];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    /**
-     * Refresh 토큰 원문을 SHA-256 hex 로 해시
-     */
-    private String hashToken(String rawToken) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
-                hex.append(Character.forDigit(b & 0xF, 16));
-            }
-            return hex.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
-        }
     }
 
 }
