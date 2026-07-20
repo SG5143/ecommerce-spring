@@ -115,6 +115,25 @@ CREATE TABLE `product_image`
 ) ENGINE=InnoDB AUTO_INCREMENT=237 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='상품 이미지 (상품당 다중)';
 
 
+-- mingler.product_option definition
+
+CREATE TABLE `product_option`
+(
+    `id`             bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '고유식별자',
+    `product_id`     bigint unsigned NOT NULL COMMENT '소속 상품',
+    `name`           varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '옵션명',
+    `extra_price`    int unsigned NOT NULL DEFAULT '0' COMMENT '옵션 추가금액 (0이면 추가금 없음)',
+    `stock_quantity` int unsigned NOT NULL DEFAULT '0' COMMENT '옵션 재고 수량 (0이면 품절)',
+    `display_order`  int unsigned NOT NULL DEFAULT '0' COMMENT '노출 순서',
+    `is_active`      tinyint(1) NOT NULL DEFAULT '1' COMMENT '노출여부',
+    `created_at`     datetime                                                      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
+    `updated_at`     datetime                                                      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_product_option_name` (`product_id`,`name`),
+    CONSTRAINT `fk_product_option_product` FOREIGN KEY (`product_id`) REFERENCES `product` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='상품 옵션 (상품당 다중, 없으면 단일 구성 상품)';
+
+
 -- mingler.refresh_token definition
 
 CREATE TABLE `refresh_token`
