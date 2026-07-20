@@ -11,6 +11,7 @@ import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
 import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -21,11 +22,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +47,9 @@ class CartServiceTest {
 
     @Mock
     private ProductOptionRepository productOptionRepository;
+
+    @Mock
+    private CartExpirationService cartExpirationService;
 
     @InjectMocks
     private CartService cartService;
@@ -274,6 +280,41 @@ class CartServiceTest {
         verify(cartRepository, never()).createGuestCartIfAbsent(any(), any());
     }
 
+    @Test
+    void 장바구니_조회는_읽기_전용_트랜잭션을_사용한다() throws NoSuchMethodException {
+        Transactional transactional = CartService.class
+                .getDeclaredMethod("getCart", Long.class, String.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.readOnly()).isTrue();
+    }
+
+    @Test
+    void 조회한_비회원_장바구니가_만료됐으면_별도_트랜잭션으로_삭제한다() {
+        Cart expiredCart = expiredGuestCart(1L);
+        when(cartRepository.findByGuestTokenHash("hash")).thenReturn(Optional.of(expiredCart));
+
+        CartResponse response = cartService.getCart(null, "hash");
+
+        assertThat(response.items()).isEmpty();
+        verify(cartExpirationService).deleteExpiredGuestCart(eq(1L), any(LocalDateTime.class));
+        verify(cartRepository, never()).delete(any(Cart.class));
+    }
+
+    @Test
+    void 잠금_조회한_만료_장바구니는_현재_쓰기_트랜잭션에서_삭제한다() {
+        Cart expiredCart = expiredGuestCart(1L);
+        when(cartRepository.findByGuestTokenHashForUpdate("hash")).thenReturn(Optional.of(expiredCart));
+
+        assertThatThrownBy(() -> cartService.updateQuantity(null, "hash", 100L, 2))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("장바구니를 찾을 수 없습니다");
+
+        verify(cartRepository).delete(expiredCart);
+        verify(cartExpirationService, never()).deleteExpiredGuestCart(any(), any());
+    }
+
     private Product product(Long id, int price, int stock) {
         Product product = Product.builder()
                 .categoryId(1L)
@@ -300,7 +341,16 @@ class CartServiceTest {
     private Cart guestCart(Long id) {
         Cart cart = Cart.builder()
                 .guestTokenHash("hash")
-                .expiresAt(java.time.LocalDateTime.now().plusDays(30))
+                .expiresAt(LocalDateTime.now().plusDays(30))
+                .build();
+        ReflectionTestUtils.setField(cart, "id", id);
+        return cart;
+    }
+
+    private Cart expiredGuestCart(Long id) {
+        Cart cart = Cart.builder()
+                .guestTokenHash("hash")
+                .expiresAt(LocalDateTime.now().minusDays(1))
                 .build();
         ReflectionTestUtils.setField(cart, "id", id);
         return cart;

@@ -40,6 +40,13 @@ public interface CartRepository extends JpaRepository<Cart, Long> {
                                 @Param("expiresAt") LocalDateTime expiresAt);
 
     @Modifying
+    @Query("""
+            DELETE FROM Cart c
+            WHERE c.id = :cartId AND c.memberId IS NULL AND c.expiresAt <= :now
+            """)
+    void deleteExpiredGuestCartById(@Param("cartId") Long cartId, @Param("now") LocalDateTime now);
+
+    @Modifying
     @Query("DELETE FROM Cart c WHERE c.memberId IS NULL AND c.expiresAt <= :now")
     int deleteExpiredGuestCarts(@Param("now") LocalDateTime now);
 }
