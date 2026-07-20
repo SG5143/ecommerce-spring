@@ -54,7 +54,24 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(function (result) {
                 if (result.ok) {
                     window.setAccessToken(result.data.accessToken);
-                    window.location.href = '/';
+                    window.authFetch('/api/v1/cart/merge', { method: 'POST' })
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error('merge failed');
+                            }
+                            return response.json();
+                        })
+                        .then(function (mergeResult) {
+                            if (mergeResult.adjustedItemIds && mergeResult.adjustedItemIds.length > 0) {
+                                sessionStorage.setItem('cartNotice', '일부 상품 수량이 현재 재고에 맞게 조정되었습니다.');
+                            }
+                        })
+                        .catch(function () {
+                            sessionStorage.setItem('cartNotice', '비회원 장바구니를 합치지 못했습니다. 장바구니에서 다시 확인해주세요.');
+                        })
+                        .finally(function () {
+                            window.location.href = '/';
+                        });
                     return;
                 }
                 if (submitButton) {

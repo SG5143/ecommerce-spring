@@ -48,7 +48,7 @@
             </div>
         </section>
 
-        <section class="detail-info" th:attr="data-base-price=${product.finalPrice()},data-stock=${product.stockQuantity}">
+        <section class="detail-info" th:attr="data-product-id=${product.id},data-base-price=${product.finalPrice()},data-stock=${product.stockQuantity}">
             <h1 class="detail-name" th:text="${product.name}">상품명</h1>
             <p class="detail-price">
                 <span class="price-original" th:if="${product.onSale()}"
@@ -96,9 +96,10 @@
             </div>
 
             <div class="detail-actions" th:unless="${product.soldOut}">
-                <button type="button" class="detail-btn detail-btn-cart not-implemented">CART</button>
+                <button type="button" class="detail-btn detail-btn-cart">CART</button>
                 <button type="button" class="detail-btn detail-btn-buy not-implemented">BUY IT NOW</button>
             </div>
+            <p id="cart-add-message" class="cart-add-message" role="status" aria-live="polite"></p>
             <div class="detail-actions" th:if="${product.soldOut}">
                 <button type="button" class="detail-btn detail-btn-soldout" disabled>SOLD OUT</button>
             </div>

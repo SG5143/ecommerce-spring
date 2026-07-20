@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>장바구니 - Mingler</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/cart.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="cart-page">
+    <h1 class="cart-title">CART</h1>
+    <p id="cart-page-message" class="cart-page-message" role="status" aria-live="polite"></p>
+
+    <div id="cart-loading" class="cart-empty">장바구니를 불러오는 중입니다.</div>
+    <section id="cart-content" hidden>
+        <div class="cart-toolbar">
+            <label class="cart-check-label">
+                <input type="checkbox" id="cart-select-all"/>
+                전체 선택
+            </label>
+            <button type="button" id="cart-delete-selected" class="cart-delete-btn">선택 삭제</button>
+        </div>
+        <ul id="cart-items" class="cart-items"></ul>
+        <div class="cart-summary">
+            <span>선택 상품금액</span>
+            <strong id="cart-selected-total">₩0</strong>
+        </div>
+        <button type="button" class="cart-checkout-btn not-implemented">CHECKOUT (준비 중)</button>
+    </section>
+    <div id="cart-empty" class="cart-empty" hidden>
+        <p>장바구니가 비어 있습니다.</p>
+        <a th:href="@{/}">쇼핑 계속하기</a>
+    </div>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>
