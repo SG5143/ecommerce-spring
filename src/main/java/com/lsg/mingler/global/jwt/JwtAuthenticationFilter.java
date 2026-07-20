@@ -29,7 +29,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String token = resolveToken(request);
-        if (token != null && tokenProvider.validate(token)) {
+        if (token != null && !tokenProvider.validate(token)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write("{\"message\":\"유효하지 않거나 만료된 인증 정보입니다.\"}");
+            return;
+        }
+        if (token != null) {
             Long memberId = tokenProvider.getMemberId(token);
             String role = tokenProvider.getRole(token);
             var authority = new SimpleGrantedAuthority("ROLE_" + role);
