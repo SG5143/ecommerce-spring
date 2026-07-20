@@ -20,7 +20,7 @@ public class ProductViewController {
     public String detail(@PathVariable Long id, Model model) {
         ProductDetail product = productService.getProductDetail(id);
         model.addAttribute("product", product);
-        model.addAttribute("category", categoryService.getCategoryPage(product.categoryId()));
+        model.addAttribute("category", categoryService.getCategoryBreadcrumb(product.categoryId()));
         return "product/detail";
     }
 

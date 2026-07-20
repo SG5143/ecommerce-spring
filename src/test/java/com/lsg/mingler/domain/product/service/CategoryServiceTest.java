@@ -1,6 +1,7 @@
 package com.lsg.mingler.domain.product.service;
 
 import com.lsg.mingler.domain.product.dao.CategoryRepository;
+import com.lsg.mingler.domain.product.dto.CategoryBreadcrumb;
 import com.lsg.mingler.domain.product.dto.CategoryMenu;
 import com.lsg.mingler.domain.product.dto.CategoryPage;
 import com.lsg.mingler.domain.product.entity.Category;
@@ -118,6 +119,41 @@ class CategoryServiceTest {
 
         assertThat(menus).isEmpty();
         verify(categoryRepository).findAllByIsActiveTrueOrderByDisplayOrderAscIdAsc();
+    }
+
+    @Test
+    void 상품_상세_브레드크럼은_현재와_부모_카테고리를_함께_담는다() {
+        when(categoryRepository.findBreadcrumbById(3L))
+                .thenReturn(Optional.of(new CategoryBreadcrumb(3L, "상의", 1L, "의류")));
+
+        CategoryBreadcrumb breadcrumb = categoryService.getCategoryBreadcrumb(3L);
+
+        assertThat(breadcrumb.name()).isEqualTo("상의");
+        assertThat(breadcrumb.parentId()).isEqualTo(1L);
+        assertThat(breadcrumb.parentName()).isEqualTo("의류");
+        assertThat(breadcrumb.hasParent()).isTrue();
+        verify(categoryRepository).findBreadcrumbById(3L);
+    }
+
+    @Test
+    void 최상위_카테고리_브레드크럼은_부모_정보가_없다() {
+        when(categoryRepository.findBreadcrumbById(1L))
+                .thenReturn(Optional.of(new CategoryBreadcrumb(1L, "의류", null, null)));
+
+        CategoryBreadcrumb breadcrumb = categoryService.getCategoryBreadcrumb(1L);
+
+        assertThat(breadcrumb.parentId()).isNull();
+        assertThat(breadcrumb.parentName()).isNull();
+        assertThat(breadcrumb.hasParent()).isFalse();
+    }
+
+    @Test
+    void 상품_상세_카테고리가_없거나_비활성이면_404_예외를_던진다() {
+        when(categoryRepository.findBreadcrumbById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> categoryService.getCategoryBreadcrumb(99L))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     @Test
