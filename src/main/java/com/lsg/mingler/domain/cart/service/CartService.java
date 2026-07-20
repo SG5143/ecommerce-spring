@@ -315,8 +315,37 @@ public class CartService {
     }
 
     private CartResponse toResponse(Cart cart) {
-        List<CartResponse.Item> items = cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(cart.getId()).stream()
-                .map(this::toResponseItem)
+        List<CartItem> cartItems = cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(cart.getId());
+        if (cartItems.isEmpty()) {
+            return CartResponse.empty();
+        }
+
+        // 응답 변환 중 항목별 조회가 발생하지 않도록 연관 상품과 옵션을 한 번에 조회한다.
+        Set<Long> productIds = new LinkedHashSet<>();
+        Set<Long> optionIds = new LinkedHashSet<>();
+        for (CartItem item : cartItems) {
+            productIds.add(item.getProductId());
+            if (item.getProductOptionId() != null) {
+                optionIds.add(item.getProductOptionId());
+            }
+        }
+
+        Map<Long, Product> productsById = new LinkedHashMap<>();
+        productRepository.findAllById(productIds)
+                .forEach(product -> productsById.put(product.getId(), product));
+        Map<Long, ProductOption> optionsById = new LinkedHashMap<>();
+        if (!optionIds.isEmpty()) {
+            productOptionRepository.findAllById(optionIds)
+                    .forEach(option -> optionsById.put(option.getId(), option));
+        }
+        Set<Long> productIdsWithOptions = new LinkedHashSet<>(
+                productOptionRepository.findProductIdsWithOptions(productIds));
+
+        List<CartResponse.Item> items = cartItems.stream()
+                .map(item -> toResponseItem(item,
+                        productsById.get(item.getProductId()),
+                        optionsById.get(item.getProductOptionId()),
+                        productIdsWithOptions.contains(item.getProductId())))
                 .toList();
         int totalQuantity = items.stream().mapToInt(CartResponse.Item::quantity).sum();
         long merchandiseTotal = items.stream()
@@ -326,11 +355,7 @@ public class CartService {
         return new CartResponse(items, totalQuantity, merchandiseTotal);
     }
 
-    private CartResponse.Item toResponseItem(CartItem item) {
-        Product product = productRepository.findById(item.getProductId()).orElse(null);
-        ProductOption option = item.getProductOptionId() == null ? null
-                : productOptionRepository.findById(item.getProductOptionId()).orElse(null);
-
+    private CartResponse.Item toResponseItem(CartItem item, Product product, ProductOption option, boolean productHasOptions) {
         String productName = product == null ? "삭제된 상품" : product.getName();
         String optionName = option == null ? null : option.getName();
         String thumbnailUrl = product == null ? null : product.getThumbnailUrl();
@@ -346,7 +371,7 @@ public class CartService {
                 && (option == null || !product.getId().equals(option.getProductId())
                 || !Boolean.TRUE.equals(option.getIsActive()))) {
             unavailableReason = "현재 선택할 수 없는 옵션입니다.";
-        } else if (item.getProductOptionId() == null && productOptionRepository.existsByProductId(product.getId())) {
+        } else if (item.getProductOptionId() == null && productHasOptions) {
             unavailableReason = "상품 옵션을 다시 선택해주세요.";
         } else {
             currentUnitPrice = product.getDisplayPrice() + (option == null ? 0 : option.getExtraPrice());

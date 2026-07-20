@@ -54,7 +54,9 @@ class CartServiceTest {
         Product product = product(10L, 12000, 5);
         AtomicReference<CartItem> savedItem = new AtomicReference<>();
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
         when(productOptionRepository.existsByProductId(10L)).thenReturn(false);
+        when(productOptionRepository.findProductIdsWithOptions(Set.of(10L))).thenReturn(List.of());
         when(cartRepository.findByGuestTokenHashForUpdate("hash")).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L))
                 .thenAnswer(invocation -> savedItem.get() == null ? List.of() : List.of(savedItem.get()));
@@ -81,8 +83,11 @@ class CartServiceTest {
         ProductOption option = option(20L, 10L, 1000, 8, true);
         CartItem existing = cartItem(100L, 1L, 10L, 20L, 2, 11000);
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
         when(productOptionRepository.existsByProductId(10L)).thenReturn(true);
         when(productOptionRepository.findById(20L)).thenReturn(Optional.of(option));
+        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
+        when(productOptionRepository.findProductIdsWithOptions(Set.of(10L))).thenReturn(List.of(10L));
         when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L)).thenReturn(List.of(existing));
         when(cartItemRepository.findVariant(1L, 10L, 20L)).thenReturn(Optional.of(existing));
@@ -196,8 +201,11 @@ class CartServiceTest {
         when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(2L)).thenReturn(List.of(memberItem));
         when(cartItemRepository.findVariant(2L, 10L, 20L)).thenReturn(Optional.of(memberItem));
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
         when(productOptionRepository.existsByProductId(10L)).thenReturn(true);
         when(productOptionRepository.findById(20L)).thenReturn(Optional.of(option));
+        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
+        when(productOptionRepository.findProductIdsWithOptions(Set.of(10L))).thenReturn(List.of(10L));
         when(cartItemRepository.save(memberItem)).thenReturn(memberItem);
 
         CartMergeResponse response = cartService.mergeGuestCart(7L, "hash");
@@ -206,6 +214,55 @@ class CartServiceTest {
         assertThat(response.mergedItemCount()).isEqualTo(1);
         assertThat(response.adjustedItemIds()).containsExactly(102L);
         verify(cartRepository).delete(guestCart);
+    }
+
+    @Test
+    void 장바구니_응답은_상품과_옵션을_중복_없이_일괄_조회한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product firstProduct = product(10L, 10000, 10);
+        Product secondProduct = product(11L, 12000, 10);
+        ProductOption option = option(20L, 10L, 1000, 10, true);
+        CartItem firstItem = cartItem(100L, 1L, 10L, 20L, 1, 11000);
+        CartItem secondItem = cartItem(101L, 1L, 10L, 20L, 2, 11000);
+        CartItem optionlessItem = cartItem(102L, 1L, 11L, null, 1, 12000);
+        when(cartRepository.findByMemberId(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L))
+                .thenReturn(List.of(firstItem, secondItem, optionlessItem));
+        when(productRepository.findAllById(Set.of(10L, 11L)))
+                .thenReturn(List.of(firstProduct, secondProduct));
+        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
+        when(productOptionRepository.findProductIdsWithOptions(Set.of(10L, 11L)))
+                .thenReturn(List.of(10L, 11L));
+
+        CartResponse response = cartService.getCart(7L, null);
+
+        assertThat(response.items()).hasSize(3);
+        assertThat(response.items().get(2).unavailableReason()).isEqualTo("상품 옵션을 다시 선택해주세요.");
+        verify(productRepository).findAllById(Set.of(10L, 11L));
+        verify(productOptionRepository).findAllById(Set.of(20L));
+        verify(productOptionRepository).findProductIdsWithOptions(Set.of(10L, 11L));
+        verify(productRepository, never()).findById(any());
+        verify(productOptionRepository, never()).findById(any());
+        verify(productOptionRepository, never()).existsByProductId(any());
+    }
+
+    @Test
+    void 일괄_조회에서_상품이나_선택_옵션이_없어도_기존_판매불가_사유를_유지한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product product = product(10L, 10000, 10);
+        CartItem missingProductItem = cartItem(100L, 1L, 99L, null, 1, 10000);
+        CartItem missingOptionItem = cartItem(101L, 1L, 10L, 999L, 1, 10000);
+        when(cartRepository.findByMemberId(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L))
+                .thenReturn(List.of(missingProductItem, missingOptionItem));
+        when(productRepository.findAllById(Set.of(99L, 10L))).thenReturn(List.of(product));
+        when(productOptionRepository.findAllById(Set.of(999L))).thenReturn(List.of());
+        when(productOptionRepository.findProductIdsWithOptions(Set.of(99L, 10L))).thenReturn(List.of(10L));
+
+        CartResponse response = cartService.getCart(7L, null);
+
+        assertThat(response.items().get(0).unavailableReason()).isEqualTo("판매 중지된 상품입니다.");
+        assertThat(response.items().get(1).unavailableReason()).isEqualTo("현재 선택할 수 없는 옵션입니다.");
     }
 
     @Test
