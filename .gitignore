@@ -50,3 +50,7 @@ loadtest/__pycache__/
 ### Claude 지침과 이력들 ###
 .claude/
 CLAUDE.md
+
+### Codex 지침과 이력들 ###
+.agents/
+AGENTS.md
