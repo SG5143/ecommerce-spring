@@ -1,16 +1,25 @@
 package com.lsg.mingler.domain.product.service;
 
+import com.lsg.mingler.domain.product.dao.ProductImageRepository;
+import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
 import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.dto.ProductCard;
+import com.lsg.mingler.domain.product.dto.ProductDetail;
 import com.lsg.mingler.domain.product.entity.Product;
+import com.lsg.mingler.domain.product.entity.ProductImage;
+import com.lsg.mingler.domain.product.entity.ProductOption;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +28,12 @@ class ProductServiceTest {
 
     @Mock
     private ProductRepository productRepository;
+
+    @Mock
+    private ProductImageRepository productImageRepository;
+
+    @Mock
+    private ProductOptionRepository productOptionRepository;
 
     @InjectMocks
     private ProductService productService;
@@ -32,6 +47,23 @@ class ProductServiceTest {
                 .salePrice(salePrice)
                 .stockQuantity(10)
                 .thumbnailUrl(thumbnailUrl)
+                .build();
+    }
+
+    private ProductImage sampleImage(String url, int displayOrder) {
+        return ProductImage.builder()
+                .productId(1L)
+                .imageUrl(url)
+                .displayOrder(displayOrder)
+                .build();
+    }
+
+    private ProductOption sampleOption(String name, int extraPrice, int stockQuantity) {
+        return ProductOption.builder()
+                .productId(1L)
+                .name(name)
+                .extraPrice(extraPrice)
+                .stockQuantity(stockQuantity)
                 .build();
     }
 
@@ -108,6 +140,89 @@ class ProductServiceTest {
 
         assertThat(cards.get(0).name()).isEqualTo("데일리 백팩");
         assertThat(cards.get(0).imageUrl()).isEqualTo("https://placehold.co/300x300?text=Backpack");
+    }
+
+    @Test
+    void 상품_상세는_이미지와_옵션을_정렬된_순서로_담는다() {
+        Product product = sampleProduct("캐시미어 블렌드 라운드넥 니트", 89000, 69000, "https://placehold.co/300x300?text=Knit+1");
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L))
+                .thenReturn(List.of(sampleImage("https://placehold.co/300x300?text=Knit+1", 0),
+                        sampleImage("https://placehold.co/300x300?text=Knit+2", 1)));
+        when(productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
+                .thenReturn(List.of(sampleOption("S", 0, 40), sampleOption("L", 1000, 0)));
+
+        ProductDetail detail = productService.getProductDetail(1L);
+
+        assertThat(detail.imageUrls()).containsExactly(
+                "https://placehold.co/300x300?text=Knit+1", "https://placehold.co/300x300?text=Knit+2");
+        assertThat(detail.hasOptions()).isTrue();
+        assertThat(detail.options()).hasSize(2);
+        assertThat(detail.options().get(1).extraPrice()).isEqualTo(1000);
+        assertThat(detail.options().get(1).soldOut()).isTrue();
+        assertThat(detail.finalPrice()).isEqualTo(69000);
+        assertThat(detail.soldOut()).isFalse();
+    }
+
+    @Test
+    void 이미지가_없으면_썸네일이_대표_이미지가_된다() {
+        Product product = sampleProduct("울 코트", 158000, null, "https://placehold.co/300x300?text=Coat");
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L)).thenReturn(List.of());
+        when(productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
+                .thenReturn(List.of());
+
+        ProductDetail detail = productService.getProductDetail(1L);
+
+        assertThat(detail.imageUrls()).containsExactly("https://placehold.co/300x300?text=Coat");
+        assertThat(detail.hasOptions()).isFalse();
+    }
+
+    @Test
+    void 상세_조회는_조회수를_1_증가시킨다() {
+        Product product = sampleProduct("울 코트", 158000, null, "https://placehold.co/300x300?text=Coat");
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L)).thenReturn(List.of());
+        when(productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
+                .thenReturn(List.of());
+
+        productService.getProductDetail(1L);
+
+        assertThat(product.getViewCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 품절_상품_상세는_soldOut이_true다() {
+        Product product = sampleProduct("린넨 반팔 셔츠", 39000, null, "https://placehold.co/300x300?text=Linen+Shirt+1");
+        ReflectionTestUtils.setField(product, "status", Product.STATUS_SOLD_OUT);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L)).thenReturn(List.of());
+        when(productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
+                .thenReturn(List.of());
+
+        ProductDetail detail = productService.getProductDetail(1L);
+
+        assertThat(detail.soldOut()).isTrue();
+    }
+
+    @Test
+    void 숨김_상품_상세_조회는_404_예외를_던진다() {
+        Product product = sampleProduct("울 코트", 158000, null, "https://placehold.co/300x300?text=Coat");
+        ReflectionTestUtils.setField(product, "status", Product.STATUS_HIDDEN);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> productService.getProductDetail(1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("상품을 찾을 수 없습니다.");
+    }
+
+    @Test
+    void 없는_상품_상세_조회는_404_예외를_던진다() {
+        when(productRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.getProductDetail(999L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("상품을 찾을 수 없습니다.");
     }
 
     @Test

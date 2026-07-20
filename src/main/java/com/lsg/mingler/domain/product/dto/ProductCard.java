@@ -1,6 +1,6 @@
 package com.lsg.mingler.domain.product.dto;
 
-public record ProductCard(String name, int price, Integer salePrice, String imageUrl) {
+public record ProductCard(Long id, String name, int price, Integer salePrice, String imageUrl) {
 
     public boolean onSale() {
         return salePrice != null;

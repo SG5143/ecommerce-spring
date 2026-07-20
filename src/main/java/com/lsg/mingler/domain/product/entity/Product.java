@@ -81,6 +81,11 @@ public class Product {
         this.salesCount = 0;
     }
 
+    /** 상세 페이지 노출 시 조회수 1 증가 (더티 체킹으로 반영) */
+    public void increaseViewCount() {
+        this.viewCount++;
+    }
+
     /** 노출 가격: 할인가가 있으면 할인가, 없으면 정가 */
     public int getDisplayPrice() {
         return salePrice != null ? salePrice : price;
