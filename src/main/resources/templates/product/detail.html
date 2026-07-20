@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="'Mingler | ' + ${product.name}">Mingler</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/product-detail.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="detail-page">
+    <nav class="breadcrumb breadcrumb-detail" aria-label="현재 위치">
+        <a th:if="${category.hasParent()}" class="breadcrumb-parent"
+           th:href="@{/categories/{id}(id=${category.parentId})}"
+           th:text="${category.parentName}">의류</a>
+        <img th:if="${category.hasParent()}" class="breadcrumb-sep" th:src="@{/images/icons/main-slide-btn.svg}" alt="" aria-hidden="true"/>
+        <a class="breadcrumb-parent" th:href="@{/categories/{id}(id=${category.id})}"
+           th:text="${category.name}">상의</a>
+        <img class="breadcrumb-sep" th:src="@{/images/icons/main-slide-btn.svg}" alt="" aria-hidden="true"/>
+        <span class="breadcrumb-current" th:text="${product.name}">상품명</span>
+    </nav>
+
+    <div class="detail-layout">
+        <section class="detail-gallery" aria-label="상품 이미지">
+            <div class="gallery-thumbs" th:if="${#lists.size(product.imageUrls) > 1}">
+                <button type="button" class="gallery-thumb" th:each="url, stat : ${product.imageUrls}"
+                        th:classappend="${stat.first} ? 'is-active'" th:attr="data-index=${stat.index}">
+                    <img th:src="${url}" th:alt="${product.name} + ' 이미지 ' + ${stat.count}"/>
+                </button>
+            </div>
+            <div class="gallery-main">
+                <span class="sale-badge" th:if="${product.onSale()}"
+                      th:text="${product.discountRate()} + '%'">20%</span>
+                <button type="button" class="gallery-btn gallery-btn-prev" aria-label="이전 이미지"
+                        th:if="${#lists.size(product.imageUrls) > 1}">
+                    <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
+                </button>
+                <img id="gallery-image" class="gallery-image"
+                     th:if="${not #lists.isEmpty(product.imageUrls)}"
+                     th:src="${product.imageUrls[0]}" th:alt="${product.name}"/>
+                <button type="button" class="gallery-btn gallery-btn-next" aria-label="다음 이미지"
+                        th:if="${#lists.size(product.imageUrls) > 1}">
+                    <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
+                </button>
+            </div>
+        </section>
+
+        <section class="detail-info" th:attr="data-base-price=${product.finalPrice()},data-stock=${product.stockQuantity}">
+            <h1 class="detail-name" th:text="${product.name}">상품명</h1>
+            <p class="detail-price">
+                <span class="price-original" th:if="${product.onSale()}"
+                      th:text="${#numbers.formatInteger(product.price, 0, 'COMMA')} + '원'">0원</span>
+                <span class="price-final"
+                      th:text="'₩ ' + ${#numbers.formatInteger(product.finalPrice(), 0, 'COMMA')}">₩ 0</span>
+            </p>
+            <p class="detail-desc" th:if="${product.description != null}" th:text="${product.description}">상품 설명</p>
+
+            <div class="detail-option-field" th:if="${product.hasOptions()}">
+                <label class="detail-option-label" for="option-select">Option Select</label>
+                <select id="option-select" class="detail-option-select" th:disabled="${product.soldOut}">
+                    <option value="">- [필수] 옵션을 선택해 주세요 -</option>
+                    <option th:each="opt : ${product.options}" th:value="${opt.id}"
+                            th:disabled="${opt.soldOut()}"
+                            th:attr="data-name=${opt.name},data-extra-price=${opt.extraPrice},data-stock=${opt.stockQuantity}"
+                            th:text="${opt.name
+                                + (opt.extraPrice > 0 ? ' (+' + #numbers.formatInteger(opt.extraPrice, 0, 'COMMA') + '원)' : '')
+                                + (opt.soldOut() ? ' (품절)' : '')}">M</option>
+                </select>
+            </div>
+
+            <ul id="selected-options" class="selected-options">
+                <li class="selected-option" th:unless="${product.hasOptions()}"
+                    th:attr="data-extra-price=0,data-stock=${product.stockQuantity}">
+                    <span class="selected-option-name" th:text="${product.name}">상품명</span>
+                    <div class="selected-option-controls">
+                        <div class="qty-stepper">
+                            <button type="button" class="qty-btn qty-btn-minus" aria-label="수량 줄이기">&minus;</button>
+                            <span class="qty-value">1</span>
+                            <button type="button" class="qty-btn qty-btn-plus" aria-label="수량 늘리기">+</button>
+                        </div>
+                        <span class="selected-option-price"
+                              th:text="${#numbers.formatInteger(product.finalPrice(), 0, 'COMMA')} + '원'">0원</span>
+                    </div>
+                </li>
+            </ul>
+
+            <div class="detail-total">
+                <span class="detail-total-label">총 상품금액</span>
+                <span class="detail-total-value">
+                    <strong id="total-price" th:text="'₩' + ${#numbers.formatInteger(product.hasOptions() ? 0 : product.finalPrice(), 0, 'COMMA')}">₩0</strong>
+                    <span id="total-count" th:text="'(' + ${product.hasOptions() ? 0 : 1} + '개)'">(0개)</span>
+                </span>
+            </div>
+
+            <div class="detail-actions" th:unless="${product.soldOut}">
+                <button type="button" class="detail-btn detail-btn-cart not-implemented">CART</button>
+                <button type="button" class="detail-btn detail-btn-buy not-implemented">BUY IT NOW</button>
+            </div>
+            <div class="detail-actions" th:if="${product.soldOut}">
+                <button type="button" class="detail-btn detail-btn-soldout" disabled>SOLD OUT</button>
+            </div>
+
+            <div class="detail-accordions">
+                <div class="detail-accordion">
+                    <button type="button" class="detail-accordion-toggle" aria-expanded="false" aria-controls="accordion-detail-info">
+                        <span>제품 상세 정보</span>
+                        <img th:src="@{/images/icons/select-icon.svg}" alt="" class="detail-accordion-icon"/>
+                    </button>
+                    <div id="accordion-detail-info" class="detail-accordion-body" hidden>
+                        <p th:text="${product.description != null ? product.description : '준비 중입니다.'}">상품 설명</p>
+                    </div>
+                </div>
+                <div class="detail-accordion">
+                    <button type="button" class="detail-accordion-toggle" aria-expanded="false" aria-controls="accordion-shipping">
+                        <span>배송 안내</span>
+                        <img th:src="@{/images/icons/select-icon.svg}" alt="" class="detail-accordion-icon"/>
+                    </button>
+                    <div id="accordion-shipping" class="detail-accordion-body" hidden>
+                        <p>평일 오후 2시 이전 결제 완료 건은 당일 출고되며, 출고 후 1~3일 내 수령 가능합니다.<br/>
+                            5만원 이상 구매 시 무료배송, 미만 시 배송비 3,000원이 부과됩니다.</p>
+                    </div>
+                </div>
+                <div class="detail-accordion">
+                    <button type="button" class="detail-accordion-toggle" aria-expanded="false" aria-controls="accordion-exchange">
+                        <span>교환 &amp; 반품 안내</span>
+                        <img th:src="@{/images/icons/select-icon.svg}" alt="" class="detail-accordion-icon"/>
+                    </button>
+                    <div id="accordion-exchange" class="detail-accordion-body" hidden>
+                        <p>수령일로부터 7일 이내 교환·반품 신청이 가능합니다.<br/>
+                            단순 변심의 경우 왕복 배송비는 고객 부담이며, 상품 하자 시 무료로 처리됩니다.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>

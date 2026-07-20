@@ -1202,6 +1202,346 @@ button {
     flex-shrink: 0;
 }
 
+/* Product detail page */
+.detail-page {
+    /* body 가 flex 컨테이너라 margin:0 auto 만으로는 fit-content 로 수축함 → 명시적으로 채움 */
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 24px 100px;
+}
+
+.breadcrumb-detail {
+    gap: 6px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.breadcrumb-detail .breadcrumb-current {
+    font-weight: 700;
+}
+
+.breadcrumb-detail .breadcrumb-sep {
+    width: 9px;
+    height: 9px;
+}
+
+.detail-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: 48px;
+    align-items: start;
+}
+
+.detail-gallery {
+    display: flex;
+    gap: 12px;
+}
+
+.gallery-thumbs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 88px;
+    flex-shrink: 0;
+}
+
+.gallery-thumb {
+    padding: 0;
+    border: 1px solid transparent;
+    background: none;
+    cursor: pointer;
+}
+
+.gallery-thumb.is-active {
+    border-color: #111;
+}
+
+.gallery-thumb img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+}
+
+.gallery-main {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.gallery-image {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1.1;
+    object-fit: cover;
+    background-color: #f5f5f5;
+}
+
+.gallery-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.gallery-btn img {
+    width: 18px;
+    height: 18px;
+    opacity: 0.55;
+}
+
+.gallery-btn:hover img {
+    opacity: 1;
+}
+
+.gallery-btn-prev {
+    left: 8px;
+}
+
+.gallery-btn-next {
+    right: 8px;
+}
+
+.gallery-btn-prev img {
+    transform: rotate(90deg);
+}
+
+.gallery-btn-next img {
+    transform: rotate(-90deg);
+}
+
+.detail-name {
+    margin: 0 0 10px;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.detail-price {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 0 20px;
+}
+
+.detail-price .price-final {
+    font-size: 20px;
+}
+
+.detail-desc {
+    margin: 0 0 28px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    font-size: 14px;
+    color: #555;
+    line-height: 1.7;
+}
+
+.detail-option-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #666;
+}
+
+.detail-option-select {
+    width: 100%;
+    padding: 12px 40px 12px 14px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    font-size: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("../images/icons/select-icon.svg");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 20px;
+    cursor: pointer;
+}
+
+.selected-options {
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.selected-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    background-color: #f7f7f7;
+    font-size: 14px;
+}
+
+.selected-option-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.qty-stepper {
+    display: flex;
+    align-items: center;
+    border: 1px solid #ddd;
+    background-color: #fff;
+}
+
+.qty-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: none;
+    font-size: 15px;
+    color: #333;
+    cursor: pointer;
+}
+
+.qty-value {
+    min-width: 32px;
+    text-align: center;
+    font-size: 13px;
+}
+
+.selected-option-price {
+    min-width: 72px;
+    text-align: right;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.selected-option-remove {
+    padding: 0;
+    border: none;
+    background: none;
+    font-size: 18px;
+    line-height: 1;
+    color: #999;
+    cursor: pointer;
+}
+
+.selected-option-remove:hover {
+    color: #111;
+}
+
+.detail-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 20px;
+    padding: 18px 0;
+    border-top: 1px solid #222;
+}
+
+.detail-total-label {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.detail-total-value strong {
+    font-size: 20px;
+}
+
+#total-count {
+    margin-left: 4px;
+    font-size: 13px;
+    color: #888;
+}
+
+.detail-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.detail-btn {
+    flex: 1;
+    padding: 16px 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+
+.detail-btn-cart {
+    background-color: #fff;
+    border: 1px solid #111;
+    color: #111;
+}
+
+.detail-btn-buy {
+    background-color: #111;
+    border: 1px solid #111;
+    color: #fff;
+}
+
+.detail-btn-soldout {
+    background-color: #eee;
+    border: 1px solid #eee;
+    color: #999;
+    cursor: default;
+}
+
+.detail-accordions {
+    margin-top: 40px;
+    border-top: 1px solid #eee;
+}
+
+.detail-accordion {
+    border-bottom: 1px solid #eee;
+}
+
+.detail-accordion-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 18px 2px;
+    border: none;
+    background: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+}
+
+.detail-accordion-icon {
+    width: 22px;
+    height: 22px;
+    transition: transform 0.2s ease;
+}
+
+.detail-accordion-toggle.is-open .detail-accordion-icon {
+    transform: rotate(180deg);
+}
+
+.detail-accordion-body {
+    padding: 0 2px 18px;
+}
+
+.detail-accordion-body p {
+    margin: 0;
+    font-size: 13px;
+    color: #666;
+    line-height: 1.7;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
     .header-inner {
@@ -1402,5 +1742,32 @@ button {
     .member-info-hint,
     .member-info-error {
         margin-left: 0;
+    }
+
+    .detail-page {
+        padding: 24px 16px 80px;
+    }
+
+    .breadcrumb-detail {
+        margin-bottom: 16px;
+    }
+
+    .detail-layout {
+        grid-template-columns: 1fr;
+        gap: 28px;
+    }
+
+    .detail-gallery {
+        flex-direction: column-reverse;
+    }
+
+    .gallery-thumbs {
+        flex-direction: row;
+        width: auto;
+        overflow-x: auto;
+    }
+
+    .gallery-thumb {
+        flex: 0 0 64px;
     }
 }

@@ -25,7 +25,8 @@
                 <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
             </button>
             <div class="carousel-track">
-                <div class="product-card" th:each="product : ${popularProducts}">
+                <a class="product-card" th:each="product : ${popularProducts}"
+                   th:href="@{/products/{id}(id=${product.id})}">
                     <div class="product-thumb">
                         <span class="sale-badge" th:if="${product.onSale()}"
                               th:text="${product.discountRate()} + '%'">20%</span>
@@ -38,7 +39,7 @@
                         <span class="price-final"
                               th:text="${#numbers.formatInteger(product.finalPrice(), 0, 'COMMA')} + '원'">0원</span>
                     </p>
-                </div>
+                </a>
             </div>
             <button type="button" class="carousel-btn carousel-btn-next" aria-label="다음 상품">
                 <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
@@ -53,7 +54,8 @@
                 <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
             </button>
             <div class="carousel-track">
-                <div class="product-card" th:each="product : ${newProducts}">
+                <a class="product-card" th:each="product : ${newProducts}"
+                   th:href="@{/products/{id}(id=${product.id})}">
                     <div class="product-thumb">
                         <span class="sale-badge" th:if="${product.onSale()}"
                               th:text="${product.discountRate()} + '%'">20%</span>
@@ -66,7 +68,7 @@
                         <span class="price-final"
                               th:text="${#numbers.formatInteger(product.finalPrice(), 0, 'COMMA')} + '원'">0원</span>
                     </p>
-                </div>
+                </a>
             </div>
             <button type="button" class="carousel-btn carousel-btn-next" aria-label="다음 상품">
                 <img th:src="@{/images/icons/main-slide-btn.svg}" alt=""/>
