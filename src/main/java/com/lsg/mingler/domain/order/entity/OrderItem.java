@@ -64,7 +64,7 @@ public class OrderItem {
     private OrderItem(Long orderId, Long productId, Long productOptionId,
                       String productName, Long categoryId, String categoryName,
                       String optionName, String thumbnailUrl, Integer unitPrice,
-                      Integer quantity) {
+                      Integer quantity, Integer lineAmount) {
         this.orderId = orderId;
         this.productId = productId;
         this.productOptionId = productOptionId;
@@ -75,6 +75,6 @@ public class OrderItem {
         this.thumbnailUrl = thumbnailUrl;
         this.unitPrice = unitPrice;
         this.quantity = quantity;
-        this.lineAmount = unitPrice != null && quantity != null ? unitPrice * quantity : null;
+        this.lineAmount = lineAmount;
     }
 }

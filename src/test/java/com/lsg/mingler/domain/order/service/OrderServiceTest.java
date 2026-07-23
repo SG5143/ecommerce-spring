@@ -27,6 +27,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -71,6 +73,9 @@ class OrderServiceTest {
     @Mock
     private OrderIdentifierGenerator identifierGenerator;
 
+    @Captor
+    private ArgumentCaptor<List<OrderItem>> orderItemsCaptor;
+
     @InjectMocks
     private OrderService orderService;
 
@@ -106,7 +111,11 @@ class OrderServiceTest {
             assertThat(item.lineAmount()).isEqualTo(20000);
         });
         verify(orderRepository).save(any(Order.class));
-        verify(orderItemRepository).saveAll(anyList());
+        verify(orderItemRepository).saveAll(orderItemsCaptor.capture());
+        assertThat(orderItemsCaptor.getValue())
+                .singleElement()
+                .extracting(OrderItem::getLineAmount)
+                .isEqualTo(20000);
         verify(cartItemRepository, never()).save(any());
     }
 
@@ -181,6 +190,25 @@ class OrderServiceTest {
                 .hasMessageContaining("재고가 부족");
 
         verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void 항목_금액이_Integer_범위를_넘으면_저장전에_거부한다() {
+        Cart cart = memberCart(1L, 7L);
+        CartItem cartItem = cartItem(100L, 1L, 10L, null, 2);
+        Member member = member(7L, "홍길동", "010-1111-2222", null);
+        Product product = product(10L, 30L, Integer.MAX_VALUE, null, 2);
+        Category category = category(30L, "상의");
+        stubSnapshotData(cartItem, product, null, category);
+        when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
+        when(memberRepository.findById(7L)).thenReturn(Optional.of(member));
+
+        assertThatThrownBy(() -> orderService.createOrder(7L, null, request(null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("주문금액이 허용 범위를 초과했습니다.");
+
+        verify(orderRepository, never()).save(any());
+        verify(orderItemRepository, never()).saveAll(anyList());
     }
 
     @Test

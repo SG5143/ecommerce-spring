@@ -54,10 +54,27 @@ public class OrderService {
     /**
      * 선택한 장바구니 항목을 현재 상품 정보로 재검증하고 결제 전 주문서와 상품 스냅샷을 생성한다.
      * 주문 생성 단계에서는 장바구니를 비우거나 재고를 차감하지 않는다.
+     *
+     * <p>처리 순서:</p>
+     * <ol>
+     *   <li>요청 항목이 실제 요청자의 장바구니 소유인지 검증한다.</li>
+     *   <li>회원은 DB 회원정보를, 비회원은 요청값을 주문자 스냅샷으로 사용한다.</li>
+     *   <li>장바구니에 담은 당시가 아닌 현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.</li>
+     *   <li>고유 주문번호와 비회원 조회 토큰을 생성하고 주문을 저장한다.</li>
+     *   <li>주문 ID 확정 후 상품 스냅샷(OrderItem)을 저장한다. 중간 실패 시 전체 롤백된다.</li>
+     * </ol>
+     *
+     * @param memberId           인증된 회원 ID. 비회원 요청은 {@code null}
+     * @param guestCartTokenHash 비회원 장바구니 식별용 SHA-256 토큰 해시. 회원 요청은 {@code null}
+     * @param request            주문 생성 요청 (장바구니 항목 ID 목록, 주문자·수령인 정보, 배송 요청사항)
+     * @return 생성된 주문서 정보. 비회원인 경우 {@code guestOrderToken} 원문을 포함.
+     * @throws IllegalArgumentException 입력값 검증 실패 시 (400)
+     * @throws org.springframework.web.server.ResponseStatusException 소유권 불일치·재고 부족·판매 중단 상품 포함 시 (404/409)
+     * @throws com.lsg.mingler.global.error.AuthenticationException 회원 계정 이상 시 (401)
      */
     @Transactional
-    public OrderCreateResponse createOrder(
-            Long memberId, String guestCartTokenHash, OrderCreateRequest request) {
+    public OrderCreateResponse createOrder(Long memberId, String guestCartTokenHash, OrderCreateRequest request) {
+
         // 1. 요청 항목이 실제 요청자의 장바구니 소유인지 먼저 확정한다.
         List<Long> cartItemIds = validateAndNormalizeItemIds(request);
         Cart cart = requireOwnedCart(memberId, guestCartTokenHash);
@@ -66,8 +83,7 @@ public class OrderService {
         // 2. 회원은 회원정보를, 비회원은 요청값을 주문자 스냅샷으로 사용한다.
         OrdererSnapshot orderer = resolveOrderer(memberId, request.orderer());
         ReceiverSnapshot receiver = validateReceiver(request.receiver());
-        String deliveryMessage = normalizeOptional(
-                request.deliveryMessage(), 255, "배송 요청사항은 255자 이하여야 합니다.");
+        String deliveryMessage = normalizeOptional(request.deliveryMessage(), 255, "배송 요청사항은 255자 이하여야 합니다.");
 
         // 3. 장바구니에 담았을 당시 값이 아닌 현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.
         SnapshotContext context = loadSnapshotContext(cartItems);
@@ -78,8 +94,7 @@ public class OrderService {
 
         // 4. 외부 노출 식별자를 생성한다. 비회원 조회 토큰은 원문 대신 해시만 DB에 저장한다.
         String orderNumber = generateUniqueOrderNumber();
-        OrderIdentifierGenerator.GuestToken guestOrderToken =
-                memberId == null ? generateUniqueGuestToken() : null;
+        OrderIdentifierGenerator.GuestToken guestOrderToken = memberId == null ? generateUniqueGuestToken() : null;
         Order order = orderRepository.save(Order.builder()
                 .orderNumber(orderNumber)
                 .memberId(memberId)
@@ -111,10 +126,12 @@ public class OrderService {
         if (request == null || request.cartItemIds() == null || request.cartItemIds().isEmpty()) {
             throw new IllegalArgumentException("주문할 장바구니 상품을 선택해주세요.");
         }
+
         boolean containsNull = request.cartItemIds().stream().anyMatch(Objects::isNull);
         if (request.cartItemIds().size() > MAX_ORDER_LINES || containsNull) {
             throw new IllegalArgumentException("주문 상품 목록이 올바르지 않습니다.");
         }
+
         LinkedHashSet<Long> distinctIds = new LinkedHashSet<>(request.cartItemIds());
         if (distinctIds.size() != request.cartItemIds().size()) {
             throw new IllegalArgumentException("중복된 장바구니 상품이 포함되어 있습니다.");
@@ -125,14 +142,12 @@ public class OrderService {
     private Cart requireOwnedCart(Long memberId, String guestCartTokenHash) {
         if (memberId != null) {
             // 수량 변경 API도 같은 잠금을 사용하므로 주문 생성 중 장바구니 변경을 막는다.
-            return cartRepository.findByMemberIdForUpdate(memberId)
-                    .orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+            return cartRepository.findByMemberIdForUpdate(memberId).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
         }
         if (guestCartTokenHash == null) {
             throw new IllegalArgumentException("비회원 장바구니 식별 정보가 필요합니다.");
         }
-        Cart cart = cartRepository.findByGuestTokenHashForUpdate(guestCartTokenHash)
-                .orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+        Cart cart = cartRepository.findByGuestTokenHashForUpdate(guestCartTokenHash).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
         if (cart.isExpired(LocalDateTime.now())) {
             throw notFound("장바구니가 만료되었습니다.");
         }
@@ -140,31 +155,37 @@ public class OrderService {
     }
 
     private List<CartItem> requireOwnedItems(Long cartId, List<Long> requestedIds) {
+
         Map<Long, CartItem> itemMap = cartItemRepository.findAllByCartIdAndIdIn(cartId, requestedIds)
                 .stream()
                 .collect(Collectors.toMap(CartItem::getId, Function.identity()));
+
         // 개수가 다르면 타 장바구니 ID 또는 이미 삭제된 항목이 섞인 요청이다.
         if (itemMap.size() != requestedIds.size()) {
             throw notFound("주문할 장바구니 상품을 찾을 수 없습니다.");
         }
-        // DB 조회 순서 대신 사용자가 선택한 순서를 유지해 응답 순서를 예측 가능하게 한다.
+
+        // DB 조회 순서 대신 사용자가 선택한 순서를 유지해 응답 순서를 예측 가능하게 함.
         return requestedIds.stream().map(itemMap::get).toList();
     }
 
     private OrdererSnapshot resolveOrderer(Long memberId, OrderCreateRequest.Orderer requestOrderer) {
+        // 회원일 경우 정상 회원인지 검증
         if (memberId != null) {
             // 회원 주문은 조작 가능한 요청값 대신 회원 원본 정보를 주문 당시 값으로 복사한다.
             if (requestOrderer != null) {
                 throw new IllegalArgumentException("회원 주문에는 주문자 정보를 직접 입력할 수 없습니다.");
             }
-            Member member = memberRepository.findById(memberId)
-                    .orElseThrow(() -> new AuthenticationException(
-                            "회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
+
+            Member member = memberRepository.findById(memberId).orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
             if (!member.isActive()) {
                 throw new AuthenticationException("이용할 수 없는 회원 계정입니다.");
             }
+
             return new OrdererSnapshot(member.getName(), member.getPhone(), member.getEmail());
         }
+
+        // 비회원일 경우 주문자 정보 검증
         if (requestOrderer == null) {
             throw new IllegalArgumentException("비회원 주문자 정보를 입력해주세요.");
         }
@@ -186,6 +207,12 @@ public class OrderService {
                 normalizeOptional(receiver.addressDetail(), 255, "상세주소는 255자 이하여야 합니다."));
     }
 
+    /**
+     * 장바구니에 담긴 당시 가격이 아닌 현재 판매 정보를 스냅샷 검증에 사용한다.
+     *
+     * @param cartItems 주문 대상 장바구니 항목 목록
+     * @return 스냅샷 생성에 필요한 상품·옵션·카테고리 맵과 옵션 보유 상품 ID 집합
+     */
     private SnapshotContext loadSnapshotContext(List<CartItem> cartItems) {
         Set<Long> productIds = cartItems.stream()
                 .map(CartItem::getProductId)
@@ -198,15 +225,13 @@ public class OrderService {
         // 주문 항목별 개별 조회를 피하도록 상품·옵션·카테고리를 종류별로 한 번씩 조회한다.
         Map<Long, Product> products = toIdMap(productRepository.findAllById(productIds), Product::getId);
         Map<Long, ProductOption> options = optionIds.isEmpty()
-                ? Map.of()
-                : toIdMap(productOptionRepository.findAllById(optionIds), ProductOption::getId);
-        Set<Long> productIdsWithOptions = new LinkedHashSet<>(
-                productOptionRepository.findProductIdsWithOptions(productIds));
+                ? Map.of() : toIdMap(productOptionRepository.findAllById(optionIds), ProductOption::getId);
+        Set<Long> productIdsWithOptions = new LinkedHashSet<>(productOptionRepository.findProductIdsWithOptions(productIds));
         Set<Long> categoryIds = products.values().stream()
                 .map(Product::getCategoryId)
                 .collect(Collectors.toSet());
-        Map<Long, Category> categories = toIdMap(
-                categoryRepository.findAllById(categoryIds), Category::getId);
+        Map<Long, Category> categories = toIdMap(categoryRepository.findAllById(categoryIds), Category::getId);
+
         return new SnapshotContext(products, options, categories, productIdsWithOptions);
     }
 
@@ -276,7 +301,7 @@ public class OrderService {
     }
 
     private String generateUniqueOrderNumber() {
-        // 난수 충돌 가능성은 낮지만 DB UNIQUE 제약에 도달하기 전에 제한 횟수만 재생성한다.
+        // DB UNIQUE 제약에 도달하기 전에 제한 횟수만 재생성
         for (int attempt = 0; attempt < IDENTIFIER_GENERATION_ATTEMPTS; attempt++) {
             String orderNumber = identifierGenerator.generateOrderNumber();
             if (!orderRepository.existsByOrderNumber(orderNumber)) {
@@ -287,7 +312,7 @@ public class OrderService {
     }
 
     private OrderIdentifierGenerator.GuestToken generateUniqueGuestToken() {
-        // 주문별 UNIQUE 컬럼이므로 장바구니 토큰을 재사용하지 않고 새 조회 토큰을 발급한다.
+        // 주문별 UNIQUE 컬럼이므로 장바구니 토큰을 재사용하지 않고 새 조회 토큰을 발급
         for (int attempt = 0; attempt < IDENTIFIER_GENERATION_ATTEMPTS; attempt++) {
             OrderIdentifierGenerator.GuestToken token = identifierGenerator.generateGuestToken();
             if (!orderRepository.existsByGuestTokenHash(token.hash())) {
@@ -309,13 +334,11 @@ public class OrderService {
                 .thumbnailUrl(snapshot.thumbnailUrl())
                 .unitPrice(snapshot.unitPrice())
                 .quantity(snapshot.quantity())
+                .lineAmount(snapshot.lineAmount())
                 .build();
     }
 
-    private OrderCreateResponse toResponse(
-            Order order,
-            List<OrderItem> orderItems,
-            OrderIdentifierGenerator.GuestToken guestOrderToken) {
+    private OrderCreateResponse toResponse(Order order, List<OrderItem> orderItems, OrderIdentifierGenerator.GuestToken guestOrderToken) {
         List<OrderCreateResponse.Item> items = orderItems.stream()
                 .map(item -> new OrderCreateResponse.Item(
                         item.getId(),
@@ -340,8 +363,7 @@ public class OrderService {
                 guestOrderToken == null ? null : guestOrderToken.rawToken());
     }
 
-    private String requireText(
-            String value, int maximumLength, String requiredMessage, String lengthMessage) {
+    private String requireText(String value, int maximumLength, String requiredMessage, String lengthMessage) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(requiredMessage);
         }
