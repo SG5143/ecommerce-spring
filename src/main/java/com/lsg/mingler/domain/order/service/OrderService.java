@@ -122,6 +122,19 @@ public class OrderService {
         return toResponse(order, savedItems, guestOrderToken);
     }
 
+    /**
+     * 주문 요청의 장바구니 항목 ID 목록을 검증하고 중복을 제거한 순서 보장 목록으로 반환한다.
+     *
+     * <ul>
+     *   <li>항목이 없거나 null이면 거부한다.</li>
+     *   <li>{@code MAX_ORDER_LINES} 초과 또는 null 항목이 포함되면 거부한다.</li>
+     *   <li>중복 ID가 있으면 거부한다. (사용자가 선택한 순서는 유지된다.)</li>
+     * </ul>
+     *
+     * @param request 주문 생성 요청
+     * @return 중복 제거 후 요청 순서가 유지된 장바구니 항목 ID 목록
+     * @throws IllegalArgumentException 검증 실패 시
+     */
     private List<Long> validateAndNormalizeItemIds(OrderCreateRequest request) {
         if (request == null || request.cartItemIds() == null || request.cartItemIds().isEmpty()) {
             throw new IllegalArgumentException("주문할 장바구니 상품을 선택해주세요.");
@@ -139,6 +152,21 @@ public class OrderService {
         return List.copyOf(distinctIds);
     }
 
+    /**
+     * 요청자 소유의 장바구니를 비관적 쓰기 잠금으로 조회한다.
+     * 잠금을 통해 주문 생성 도중 다른 트랜잭션이 장바구니 수량을 변경하는 것을 방지한다.
+     *
+     * <ul>
+     *   <li>회원: {@code memberId}로 장바구니를 조회한다.</li>
+     *   <li>비회원: {@code guestCartTokenHash}로 장바구니를 조회하며, 만료된 장바구니는 거부한다.</li>
+     * </ul>
+     *
+     * @param memberId           인증된 회원 ID. 비회원은 {@code null}
+     * @param guestCartTokenHash 비회원 장바구니 식별용 SHA-256 토큰 해시. 회원은 {@code null}
+     * @return 잠금이 걸린 요청자 소유의 장바구니
+     * @throws IllegalArgumentException 비회원인데 토큰 해시가 없을 때
+     * @throws org.springframework.web.server.ResponseStatusException 장바구니 없음·만료 시 (404)
+     */
     private Cart requireOwnedCart(Long memberId, String guestCartTokenHash) {
         if (memberId != null) {
             // 수량 변경 API도 같은 잠금을 사용하므로 주문 생성 중 장바구니 변경을 막는다.
