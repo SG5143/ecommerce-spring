@@ -7,7 +7,7 @@ import java.util.Set;
  * 결제 도메인의 상태와 허용 가능한 다음 상태 규칙을 정의
  */
 public enum PaymentStatus {
-    PENDING,        // 결재 승인 전 상태
+    PENDING,        // 결제 승인 전 상태
     SUCCESS,        // 결제 승인 완료
     FAILED,         // 결제 실패
     CANCELLED,      // 결제 취소 완료

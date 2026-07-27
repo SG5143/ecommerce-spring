@@ -21,7 +21,12 @@ import com.lsg.mingler.domain.product.entity.ProductOption;
 import com.lsg.mingler.global.error.AuthenticationException;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -123,7 +128,7 @@ public class OrderService {
     }
 
     /**
-     * 주문 요청의 장바구니 항목 ID 목록을 검증하고 중복을 제거한 순서 보장 목록으로 반환한다.
+     * 주문 요청의 장바구니 항목 ID 목록을 검증하고 요청 순서를 유지한 목록으로 반환한다.
      *
      * <ul>
      *   <li>항목이 없거나 null이면 거부한다.</li>
@@ -132,7 +137,7 @@ public class OrderService {
      * </ul>
      *
      * @param request 주문 생성 요청
-     * @return 중복 제거 후 요청 순서가 유지된 장바구니 항목 ID 목록
+     * @return 검증을 통과하고 요청 순서가 유지된 장바구니 항목 ID 목록
      * @throws IllegalArgumentException 검증 실패 시
      */
     private List<Long> validateAndNormalizeItemIds(OrderCreateRequest request) {
