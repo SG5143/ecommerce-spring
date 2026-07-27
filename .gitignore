@@ -54,3 +54,6 @@ CLAUDE.md
 ### Codex 지침과 이력들 ###
 .agents/
 AGENTS.md
+
+### 로컬 작업 문서 ###
+docs/

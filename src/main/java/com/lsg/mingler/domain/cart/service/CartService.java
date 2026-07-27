@@ -37,12 +37,9 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class CartService {
 
-    /** 장바구니 상품 한 행에 허용하는 최대 수량 */
-    public static final int MAX_ITEM_QUANTITY = 99;
-    /** 한 번의 담기 요청에서 허용하는 최대 상품 옵션 행 수 */
-    private static final int MAX_ADD_LINES = 20;
-    /** 하나의 장바구니에 허용하는 최대 상품 행 수 */
-    private static final int MAX_CART_LINES = 100;
+    public static final int MAX_ITEM_QUANTITY = 99; // 장바구니 상품 한 행에 허용하는 최대 수량
+    private static final int MAX_ADD_LINES = 20; // 한 번의 담기 요청에서 허용하는 최대 상품 옵션 행 수
+    private static final int MAX_CART_LINES = 100; // 하나의 장바구니에 허용하는 최대 상품 행 수
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
@@ -75,8 +72,11 @@ public class CartService {
     @Transactional(readOnly = true)
     public int getCartCount(Long memberId, String guestTokenHash) {
         Optional<Cart> cart = findCart(memberId, guestTokenHash, false);
-        return cart.map(value -> Math.toIntExact(cartItemRepository.sumQuantityByCartId(value.getId())))
-                .orElse(0);
+        if (cart.isEmpty()) return 0;
+
+        Long cartId = cart.get().getId();
+        long totalQuantity = cartItemRepository.sumQuantityByCartId(cartId);
+        return Math.toIntExact(totalQuantity);
     }
 
     /**
@@ -107,9 +107,7 @@ public class CartService {
 
         for (ValidatedVariant variant : variants) {
             // DB 유니크 키와 같은 상품·옵션 조합을 기준으로 신규 생성 또는 수량 합산한다.
-            CartItem item = cartItemRepository.findVariant(
-                            cart.getId(), variant.key().productId(), variant.key().optionId())
-                    .orElse(null);
+            CartItem item = cartItemRepository.findVariant(cart.getId(), variant.key().productId(), variant.key().optionId()).orElse(null);
             int nextQuantity = variant.requestedQuantity() + (item == null ? 0 : item.getQuantity());
             validateQuantityAgainstStock(nextQuantity, variant.stockQuantity());
             if (item == null) {
@@ -142,10 +140,8 @@ public class CartService {
     public CartResponse updateQuantity(Long memberId, String guestTokenHash, Long itemId, Integer quantity) {
         validateQuantity(quantity);
         Cart cart = requireCart(memberId, guestTokenHash);
-        CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), itemId)
-                .orElseThrow(() -> notFound("장바구니 상품을 찾을 수 없습니다."));
-        ValidatedVariant variant = validateVariant(
-                new VariantKey(item.getProductId(), item.getProductOptionId()), quantity);
+        CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), itemId).orElseThrow(() -> notFound("장바구니 상품을 찾을 수 없습니다."));
+        ValidatedVariant variant = validateVariant(new VariantKey(item.getProductId(), item.getProductOptionId()), quantity);
         validateQuantityAgainstStock(quantity, variant.stockQuantity());
         item.changeQuantity(quantity);
         extendGuestExpiration(cart);
@@ -210,9 +206,7 @@ public class CartService {
 
         for (CartItem guestItem : guestItems) {
             // 회원 장바구니에 같은 상품·옵션이 있으면 하나의 행으로 수량을 합친다.
-            CartItem memberItem = cartItemRepository.findVariant(
-                            memberCart.getId(), guestItem.getProductId(), guestItem.getProductOptionId())
-                    .orElse(null);
+            CartItem memberItem = cartItemRepository.findVariant(memberCart.getId(), guestItem.getProductId(), guestItem.getProductOptionId()).orElse(null);
             int combinedQuantity = guestItem.getQuantity() + (memberItem == null ? 0 : memberItem.getQuantity());
             int maximum = resolveMergeMaximum(guestItem);
             int mergedQuantity = Math.min(combinedQuantity, maximum);
@@ -289,8 +283,7 @@ public class CartService {
      * 옵션 상품은 활성 옵션 재고를, 단일 구성 상품은 상품 재고를 사용한다.
      */
     private ValidatedVariant validateVariant(VariantKey key, int requestedQuantity) {
-        Product product = productRepository.findById(key.productId())
-                .orElseThrow(() -> notFound("상품을 찾을 수 없습니다."));
+        Product product = productRepository.findById(key.productId()).orElseThrow(() -> notFound("상품을 찾을 수 없습니다."));
         if (!product.isOnSale()) {
             throw conflict("현재 판매 중인 상품이 아닙니다.");
         }
@@ -305,8 +298,7 @@ public class CartService {
             if (key.optionId() == null) {
                 throw new IllegalArgumentException("상품 옵션을 선택해주세요.");
             }
-            option = productOptionRepository.findById(key.optionId())
-                    .orElseThrow(() -> notFound("상품 옵션을 찾을 수 없습니다."));
+            option = productOptionRepository.findById(key.optionId()).orElseThrow(() -> notFound("상품 옵션을 찾을 수 없습니다."));
             if (!product.getId().equals(option.getProductId())) {
                 throw new IllegalArgumentException("상품에 속하지 않은 옵션입니다.");
             }
@@ -363,8 +355,7 @@ public class CartService {
 
     /** 변경 작업을 위해 장바구니를 잠금 조회하고, 없거나 만료됐으면 404 예외를 발생시킨다. */
     private Cart requireCart(Long memberId, String guestTokenHash) {
-        return findCart(memberId, guestTokenHash, true)
-                .orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+        return findCart(memberId, guestTokenHash, true).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
     }
 
     /**
@@ -375,10 +366,12 @@ public class CartService {
         Optional<Cart> found;
         // 인증된 회원 ID가 있으면 비회원 토큰보다 우선해 회원 장바구니를 선택한다.
         if (memberId != null) {
-            found = lock ? cartRepository.findByMemberIdForUpdate(memberId)
+            found = lock
+                    ? cartRepository.findByMemberIdForUpdate(memberId)
                     : cartRepository.findByMemberId(memberId);
         } else if (guestTokenHash != null) {
-            found = lock ? cartRepository.findByGuestTokenHashForUpdate(guestTokenHash)
+            found = lock
+                    ? cartRepository.findByGuestTokenHashForUpdate(guestTokenHash)
                     : cartRepository.findByGuestTokenHash(guestTokenHash);
         } else {
             return Optional.empty();
@@ -413,8 +406,7 @@ public class CartService {
      */
     private int resolveMergeMaximum(CartItem item) {
         try {
-            ValidatedVariant variant = validateVariant(
-                    new VariantKey(item.getProductId(), item.getProductOptionId()), 1);
+            ValidatedVariant variant = validateVariant(new VariantKey(item.getProductId(), item.getProductOptionId()), 1);
             return Math.min(variant.stockQuantity(), MAX_ITEM_QUANTITY);
         } catch (ResponseStatusException | IllegalArgumentException e) {
             return MAX_ITEM_QUANTITY;
@@ -442,15 +434,12 @@ public class CartService {
         }
 
         Map<Long, Product> productsById = new LinkedHashMap<>();
-        productRepository.findAllById(productIds)
-                .forEach(product -> productsById.put(product.getId(), product));
+        productRepository.findAllById(productIds).forEach(product -> productsById.put(product.getId(), product));
         Map<Long, ProductOption> optionsById = new LinkedHashMap<>();
         if (!optionIds.isEmpty()) {
-            productOptionRepository.findAllById(optionIds)
-                    .forEach(option -> optionsById.put(option.getId(), option));
+            productOptionRepository.findAllById(optionIds).forEach(option -> optionsById.put(option.getId(), option));
         }
-        Set<Long> productIdsWithOptions = new LinkedHashSet<>(
-                productOptionRepository.findProductIdsWithOptions(productIds));
+        Set<Long> productIdsWithOptions = new LinkedHashSet<>(productOptionRepository.findProductIdsWithOptions(productIds));
 
         List<CartResponse.Item> items = cartItems.stream()
                 .map(item -> toResponseItem(item,
@@ -528,7 +517,6 @@ public class CartService {
     }
 
     /** 검증을 통과한 상품·옵션과 요청 수량, 재고, 현재 단가를 함께 전달하는 내부 값 객체 */
-    private record ValidatedVariant(VariantKey key, int requestedQuantity, int stockQuantity,
-                                    int currentUnitPrice, Product product, ProductOption option) {
+    private record ValidatedVariant(VariantKey key, int requestedQuantity, int stockQuantity, int currentUnitPrice, Product product, ProductOption option) {
     }
 }

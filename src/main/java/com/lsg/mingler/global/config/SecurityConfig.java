@@ -44,6 +44,8 @@ public class SecurityConfig {
                         // 장바구니는 회원·비회원 공용. 병합만 로그인 회원으로 제한
                         .requestMatchers(HttpMethod.POST, "/api/v1/cart/merge").authenticated()
                         .requestMatchers("/api/v1/cart", "/api/v1/cart/**").permitAll()
+                        // 주문서 생성은 회원·비회원 공용
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders").permitAll()
                         // 그 외 API 는 인증 필요 (ADMIN 전용 경로는 향후 hasRole 규칙 추가 예정)
                         .anyRequest().authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)
