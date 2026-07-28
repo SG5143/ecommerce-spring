@@ -7,7 +7,7 @@ import com.lsg.mingler.domain.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,20 +28,11 @@ public class OrderApiController {
      */
     @PostMapping
     public ResponseEntity<OrderCreateResponse> createOrder(
-            Authentication authentication,
+            @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestCartToken,
             @RequestBody OrderCreateRequest request) {
-        Long memberId = memberId(authentication);
         String guestCartTokenHash = memberId == null ? guestCartTokenManager.hash(guestCartToken) : null;
         OrderCreateResponse response = orderService.createOrder(memberId, guestCartTokenHash, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    /** JWT 인증 필터가 설정한 회원 ID를 반환하고 미인증 요청은 비회원으로 취급한다. */
-    private Long memberId(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long id)) {
-            return null;
-        }
-        return id;
     }
 }

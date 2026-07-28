@@ -11,7 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,26 +33,25 @@ public class CartApiController {
 
     @GetMapping
     public ResponseEntity<CartResponse> getCart(
-            Authentication authentication,
+            @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken) {
-        return ResponseEntity.ok(cartService.getCart(memberId(authentication), hash(guestToken)));
+        return ResponseEntity.ok(cartService.getCart(memberId, hash(guestToken)));
     }
 
     @GetMapping("/count")
     public ResponseEntity<CartCountResponse> getCartCount(
-            Authentication authentication,
+            @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken) {
-        int totalQuantity = cartService.getCartCount(memberId(authentication), hash(guestToken));
+        int totalQuantity = cartService.getCartCount(memberId, hash(guestToken));
         return ResponseEntity.ok(new CartCountResponse(totalQuantity));
     }
 
     @PostMapping("/items")
     public ResponseEntity<CartResponse> addItems(
-            Authentication authentication,
+            @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken,
             @RequestBody CartItemsAddRequest request,
             HttpServletResponse response) {
-        Long memberId = memberId(authentication);
         String effectiveGuestToken = guestToken;
         if (memberId == null && (effectiveGuestToken == null || effectiveGuestToken.isBlank())) {
             effectiveGuestToken = guestCartTokenManager.generate();
@@ -66,12 +65,11 @@ public class CartApiController {
 
     @PatchMapping("/items/{itemId}")
     public ResponseEntity<CartResponse> updateQuantity(
-            Authentication authentication,
+            @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken,
             @PathVariable Long itemId,
             @RequestBody CartItemQuantityUpdateRequest request,
             HttpServletResponse response) {
-        Long memberId = memberId(authentication);
         CartResponse cart = cartService.updateQuantity(
                 memberId, hash(guestToken), itemId, request.quantity());
         refreshGuestCookie(response, memberId, guestToken);
@@ -80,11 +78,10 @@ public class CartApiController {
 
     @DeleteMapping("/items")
     public ResponseEntity<CartResponse> deleteItems(
-            Authentication authentication,
+            @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken,
             @RequestParam List<Long> ids,
             HttpServletResponse response) {
-        Long memberId = memberId(authentication);
         CartResponse cart = cartService.deleteItems(memberId, hash(guestToken), ids);
         refreshGuestCookie(response, memberId, guestToken);
         return ResponseEntity.ok(cart);
@@ -92,21 +89,14 @@ public class CartApiController {
 
     @PostMapping("/merge")
     public ResponseEntity<CartMergeResponse> merge(
-            Authentication authentication,
+            @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken,
             HttpServletResponse response) {
-        CartMergeResponse result = cartService.mergeGuestCart(memberId(authentication), hash(guestToken));
+        CartMergeResponse result = cartService.mergeGuestCart(memberId, hash(guestToken));
         if (guestToken != null && !guestToken.isBlank()) {
             guestCartTokenManager.expireCookie(response);
         }
         return ResponseEntity.ok(result);
-    }
-
-    private Long memberId(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long id)) {
-            return null;
-        }
-        return id;
     }
 
     private String hash(String guestToken) {
