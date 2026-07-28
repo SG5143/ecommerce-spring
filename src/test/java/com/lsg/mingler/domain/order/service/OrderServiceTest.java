@@ -19,6 +19,8 @@ import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.entity.Category;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
+import com.lsg.mingler.global.error.ConflictException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,7 +35,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -168,7 +169,7 @@ class OrderServiceTest {
         when(cartItemRepository.findAllByCartIdAndIdIn(1L, List.of(100L))).thenReturn(List.of());
 
         assertThatThrownBy(() -> orderService.createOrder(7L, null, request(null)))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("장바구니 상품");
 
         verify(orderRepository, never()).save(any());
@@ -186,7 +187,7 @@ class OrderServiceTest {
         when(memberRepository.findById(7L)).thenReturn(Optional.of(member));
 
         assertThatThrownBy(() -> orderService.createOrder(7L, null, request(null)))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("재고가 부족");
 
         verify(orderRepository, never()).save(any());
@@ -220,7 +221,7 @@ class OrderServiceTest {
         assertThatThrownBy(() -> orderService.createOrder(
                 null, "cart-hash", request(new OrderCreateRequest.Orderer(
                         "비회원", "010-9999-8888", null))))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("만료");
 
         verify(cartItemRepository, never()).findAllByCartIdAndIdIn(any(), any());

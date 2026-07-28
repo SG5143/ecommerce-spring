@@ -11,6 +11,8 @@ import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
 import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
+import com.lsg.mingler.global.error.ConflictException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -23,7 +25,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -131,7 +132,7 @@ class CartServiceTest {
 
         assertThatThrownBy(() -> cartService.addItems(7L, null,
                 new CartItemsAddRequest(List.of(new CartItemsAddRequest.Item(10L, null, 3)))))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("재고가 부족합니다");
     }
 
@@ -142,7 +143,7 @@ class CartServiceTest {
         when(cartItemRepository.findByCartIdAndId(1L, 999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> cartService.updateQuantity(7L, null, 999L, 2))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("장바구니 상품을 찾을 수 없습니다");
     }
 
@@ -173,7 +174,7 @@ class CartServiceTest {
                 .thenReturn(List.of(ownedItem));
 
         assertThatThrownBy(() -> cartService.deleteItems(7L, null, List.of(100L, 999L)))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("장바구니 상품을 찾을 수 없습니다");
 
         verify(cartItemRepository, never()).deleteAllByCartIdAndIdIn(any(), any());
@@ -348,7 +349,7 @@ class CartServiceTest {
         when(cartRepository.findByGuestTokenHashForUpdate("hash")).thenReturn(Optional.of(expiredCart));
 
         assertThatThrownBy(() -> cartService.updateQuantity(null, "hash", 100L, 2))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("장바구니를 찾을 수 없습니다");
 
         verify(cartRepository).delete(expiredCart);

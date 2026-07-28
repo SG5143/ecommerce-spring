@@ -13,7 +13,9 @@ import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
 import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
+import com.lsg.mingler.global.error.ConflictException;
 import com.lsg.mingler.global.error.DuplicateException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -25,7 +27,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -126,7 +127,7 @@ class PaymentTransactionServiceTest {
 
         assertThatThrownBy(() -> paymentTransactionService.confirm(
                 7L, null, command(19_000)))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("결제 요청금액");
 
         verify(productRepository, never()).findAllByIdInForUpdate(any());
@@ -142,7 +143,7 @@ class PaymentTransactionServiceTest {
 
         assertThatThrownBy(() -> paymentTransactionService.confirm(
                 7L, null, command(20_000)))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("스냅샷 금액");
 
         verify(productRepository, never()).findAllByIdInForUpdate(any());
@@ -159,7 +160,7 @@ class PaymentTransactionServiceTest {
 
         assertThatThrownBy(() -> paymentTransactionService.confirm(
                 7L, null, command(20_000)))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("재고가 부족");
 
         assertThat(product.getStockQuantity()).isEqualTo(1);
@@ -208,7 +209,7 @@ class PaymentTransactionServiceTest {
 
         assertThatThrownBy(() -> paymentTransactionService.confirm(
                 7L, null, command(20_000)))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("주문을 찾을 수 없습니다");
 
         verify(paymentRepository, never()).findByMemberIdAndIdempotencyKey(any(), any());
