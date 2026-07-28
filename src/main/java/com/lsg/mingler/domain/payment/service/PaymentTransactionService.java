@@ -50,16 +50,12 @@ public class PaymentTransactionService {
      * @return 승인된 결제와 주문 상태
      */
     @Transactional
-    public PaymentConfirmResponse confirm(
-            Long memberId,
-            String guestOrderTokenHash,
-            PaymentService.PaymentConfirmCommand command) {
-        Order order = orderRepository.findByOrderNumberForUpdate(command.orderNumber())
-                .orElseThrow(() -> new ResourceNotFoundException("주문을 찾을 수 없습니다."));
+    PaymentConfirmResponse confirm(Long memberId, String guestOrderTokenHash, PaymentService.PaymentConfirmCommand command) {
+        Order order = orderRepository.findByOrderNumberForUpdate(command.orderNumber()).orElseThrow(()
+                -> new ResourceNotFoundException("주문을 찾을 수 없습니다."));
         validateOwner(order, memberId, guestOrderTokenHash);
 
-        Optional<Payment> existing = findExistingPayment(
-                order.getId(), memberId, command.idempotencyKey());
+        Optional<Payment> existing = findExistingPayment(order.getId(), memberId, command.idempotencyKey());
         if (existing.isPresent()) {
             return replayExisting(order, existing.get(), command);
         }
@@ -116,10 +112,7 @@ public class PaymentTransactionService {
      * @param idempotencyKey 결제 요청 멱등성 키
      * @return 같은 멱등성 키로 저장된 결제, 없으면 빈 값
      */
-    private Optional<Payment> findExistingPayment(
-            Long orderId,
-            Long memberId,
-            String idempotencyKey) {
+    private Optional<Payment> findExistingPayment(Long orderId, Long memberId, String idempotencyKey) {
         if (memberId != null) {
             return paymentRepository.findByMemberIdAndIdempotencyKey(memberId, idempotencyKey);
         }
@@ -135,16 +128,13 @@ public class PaymentTransactionService {
      * @return 기존 승인 결과
      * @throws DuplicateException 기존 결제와 현재 요청 내용이 다른 경우
      */
-    private PaymentConfirmResponse replayExisting(
-            Order order,
-            Payment payment,
-            PaymentService.PaymentConfirmCommand command) {
+    private PaymentConfirmResponse replayExisting(Order order, Payment payment, PaymentService.PaymentConfirmCommand command) {
         boolean sameRequest = order.getId().equals(payment.getOrderId())
                 && command.amount().equals(payment.getAmount())
                 && command.paymentMethod().equals(payment.getPaymentMethod())
                 && PG_PROVIDER.equals(payment.getPgProvider());
         if (!sameRequest) {
-            throw new DuplicateException("동일한 멱등성 키가 다른 결제 요청에 사용되었습니다.");
+            throw new DuplicateException("결제 요청 정보가 이전 요청과 달라 처리할 수 없습니다. 결제 내용을 확인한 후 다시 시도해주세요.");
         }
         if (payment.getStatus() != PaymentStatus.SUCCESS) {
             throw new ConflictException("동일한 결제 요청이 처리 중이거나 완료되지 않았습니다.");
@@ -160,10 +150,7 @@ public class PaymentTransactionService {
      * @param orderItems 주문 당시 저장된 상품 스냅샷
      * @param requestedAmount 클라이언트가 요청한 결제금액
      */
-    private void validateSnapshotAmount(
-            Order order,
-            List<OrderItem> orderItems,
-            Integer requestedAmount) {
+    private void validateSnapshotAmount(Order order, List<OrderItem> orderItems, Integer requestedAmount) {
         if (orderItems.isEmpty()) {
             throw new ConflictException("주문 상품 스냅샷이 없습니다.");
         }

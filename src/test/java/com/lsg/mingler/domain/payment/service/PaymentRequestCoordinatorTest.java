@@ -51,7 +51,7 @@ class PaymentRequestCoordinatorTest {
 
         assertThatThrownBy(() -> coordinator.coordinate("owner:key", "second", this::response))
                 .isInstanceOf(DuplicateException.class)
-                .hasMessageContaining("다른 결제 요청");
+                .hasMessageContaining("이전 요청과 달라");
     }
 
     @Test

@@ -197,7 +197,7 @@ class PaymentTransactionServiceTest {
         assertThatThrownBy(() -> paymentTransactionService.confirm(
                 7L, null, command(20_000)))
                 .isInstanceOf(DuplicateException.class)
-                .hasMessageContaining("다른 결제 요청");
+                .hasMessageContaining("이전 요청과 달라");
 
         verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
     }

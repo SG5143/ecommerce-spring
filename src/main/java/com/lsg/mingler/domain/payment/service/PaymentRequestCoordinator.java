@@ -33,10 +33,7 @@ public class PaymentRequestCoordinator {
      * @return 최초 실행 또는 공유된 실행의 결제 승인 결과
      * @throws DuplicateException 같은 캐시 키에 서로 다른 요청 내용이 사용된 경우
      */
-    public PaymentConfirmResponse coordinate(
-            String cacheKey,
-            String fingerprint,
-            Supplier<PaymentConfirmResponse> action) {
+    public PaymentConfirmResponse coordinate(String cacheKey, String fingerprint, Supplier<PaymentConfirmResponse> action) {
         AtomicBoolean owner = new AtomicBoolean(false);
         CoordinatedRequest coordinated = requests.asMap().compute(cacheKey, (key, existing) -> {
             if (existing == null) {
@@ -47,7 +44,7 @@ public class PaymentRequestCoordinator {
         });
 
         if (!coordinated.fingerprint().equals(fingerprint)) {
-            throw new DuplicateException("동일한 멱등성 키가 다른 결제 요청에 사용되었습니다.");
+            throw new DuplicateException("결제 요청 정보가 이전 요청과 달라 처리할 수 없습니다. 결제 내용을 확인한 후 다시 시도해주세요.");
         }
 
         if (owner.get()) {
