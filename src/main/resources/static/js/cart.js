@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const deleteSelected = document.getElementById('cart-delete-selected');
     const selectedTotal = document.getElementById('cart-selected-total');
     const message = document.getElementById('cart-page-message');
+    const checkout = document.getElementById('cart-checkout');
     let cart = { items: [], totalQuantity: 0 };
     const selectedIds = new Set();
 
@@ -22,6 +23,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateSelectionSummary() {
         let total = 0;
         cart.items.forEach(function (item) {
+            if (!item.available) {
+                selectedIds.delete(item.id);
+            }
             if (selectedIds.has(item.id) && item.available) {
                 total += item.lineTotal;
             }
@@ -35,6 +39,12 @@ document.addEventListener('DOMContentLoaded', function () {
         selectAll.indeterminate = !selectAll.checked && availableIds.some(function (id) {
             return selectedIds.has(id);
         });
+        checkout.disabled = total <= 0 || selectedIds.size === 0;
+        if (selectedIds.size > 0) {
+            window.checkoutState.setSelection(Array.from(selectedIds));
+        } else {
+            window.checkoutState.clearSelection();
+        }
     }
 
     function appendTextElement(parent, tagName, className, text) {
@@ -214,6 +224,28 @@ document.addEventListener('DOMContentLoaded', function () {
                 render(data, false);
             })
             .catch(function (error) { showMessage(error.message, true); });
+    });
+
+    checkout.addEventListener('click', function () {
+        if (checkout.disabled || selectedIds.size === 0) {
+            showMessage('주문할 상품을 선택해주세요.', true);
+            return;
+        }
+        const pending = window.checkoutState.getPending();
+        if (pending) {
+            const continuePayment = window.confirm(
+                '결제가 완료되지 않은 이전 주문이 있습니다.\n'
+                + '확인을 누르면 이전 결제를 계속하고, 취소를 누르면 새 주문을 시작합니다.'
+            );
+            if (continuePayment) {
+                window.location.href = '/checkout/payment';
+                return;
+            }
+            window.checkoutState.clearPending();
+        }
+        window.checkoutState.clearComplete();
+        window.checkoutState.setSelection(Array.from(selectedIds));
+        window.location.href = '/checkout';
     });
 
     const storedNotice = sessionStorage.getItem('cartNotice');
