@@ -13,7 +13,9 @@ import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
 import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
+import com.lsg.mingler.global.error.ConflictException;
 import com.lsg.mingler.global.error.DuplicateException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,10 +24,8 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -55,7 +55,7 @@ public class PaymentTransactionService {
             String guestOrderTokenHash,
             PaymentService.PaymentConfirmCommand command) {
         Order order = orderRepository.findByOrderNumberForUpdate(command.orderNumber())
-                .orElseThrow(() -> notFound("주문을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("주문을 찾을 수 없습니다."));
         validateOwner(order, memberId, guestOrderTokenHash);
 
         Optional<Payment> existing = findExistingPayment(
@@ -64,7 +64,7 @@ public class PaymentTransactionService {
             return replayExisting(order, existing.get(), command);
         }
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
-            throw conflict("결제할 수 있는 주문 상태가 아닙니다.");
+            throw new ConflictException("결제할 수 있는 주문 상태가 아닙니다.");
         }
 
         List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdOrderByIdAsc(order.getId());
@@ -99,12 +99,12 @@ public class PaymentTransactionService {
     private void validateOwner(Order order, Long memberId, String guestOrderTokenHash) {
         if (memberId != null) {
             if (!memberId.equals(order.getMemberId())) {
-                throw notFound("주문을 찾을 수 없습니다.");
+                throw new ResourceNotFoundException("주문을 찾을 수 없습니다.");
             }
             return;
         }
         if (guestOrderTokenHash == null || !guestOrderTokenHash.equals(order.getGuestTokenHash())) {
-            throw notFound("주문을 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("주문을 찾을 수 없습니다.");
         }
     }
 
@@ -147,7 +147,7 @@ public class PaymentTransactionService {
             throw new DuplicateException("동일한 멱등성 키가 다른 결제 요청에 사용되었습니다.");
         }
         if (payment.getStatus() != PaymentStatus.SUCCESS) {
-            throw conflict("동일한 결제 요청이 처리 중이거나 완료되지 않았습니다.");
+            throw new ConflictException("동일한 결제 요청이 처리 중이거나 완료되지 않았습니다.");
         }
         return toResponse(order, payment);
     }
@@ -165,7 +165,7 @@ public class PaymentTransactionService {
             List<OrderItem> orderItems,
             Integer requestedAmount) {
         if (orderItems.isEmpty()) {
-            throw conflict("주문 상품 스냅샷이 없습니다.");
+            throw new ConflictException("주문 상품 스냅샷이 없습니다.");
         }
 
         int merchandiseAmount = 0;
@@ -174,26 +174,26 @@ public class PaymentTransactionService {
                 if (item.getUnitPrice() == null || item.getUnitPrice() < 0
                         || item.getQuantity() == null || item.getQuantity() <= 0
                         || item.getLineAmount() == null) {
-                    throw conflict("주문 상품 스냅샷 금액이 올바르지 않습니다.");
+                    throw new ConflictException("주문 상품 스냅샷 금액이 올바르지 않습니다.");
                 }
                 int lineAmount = Math.multiplyExact(item.getUnitPrice(), item.getQuantity());
                 if (lineAmount != item.getLineAmount()) {
-                    throw conflict("주문 상품 스냅샷 금액이 일치하지 않습니다.");
+                    throw new ConflictException("주문 상품 스냅샷 금액이 일치하지 않습니다.");
                 }
                 merchandiseAmount = Math.addExact(merchandiseAmount, lineAmount);
             }
 
             if (merchandiseAmount != order.getMerchandiseAmount()) {
-                throw conflict("주문 상품금액 합계가 일치하지 않습니다.");
+                throw new ConflictException("주문 상품금액 합계가 일치하지 않습니다.");
             }
             int totalAmount = Math.addExact(
                     Math.subtractExact(order.getMerchandiseAmount(), order.getDiscountAmount()),
                     order.getShippingFee());
             if (totalAmount != order.getTotalAmount() || totalAmount != requestedAmount) {
-                throw conflict("결제 요청금액이 주문금액과 일치하지 않습니다.");
+                throw new ConflictException("결제 요청금액이 주문금액과 일치하지 않습니다.");
             }
         } catch (ArithmeticException e) {
-            throw conflict("주문금액이 허용 범위를 초과했습니다.");
+            throw new ConflictException("주문금액이 허용 범위를 초과했습니다.");
         }
     }
 
@@ -227,10 +227,10 @@ public class PaymentTransactionService {
         for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
             Product product = products.get(entry.getKey());
             if (product == null) {
-                throw conflict("상품 재고 정보를 찾을 수 없습니다.");
+                throw new ConflictException("상품 재고 정보를 찾을 수 없습니다.");
             }
             if (product.getStockQuantity() < entry.getValue()) {
-                throw conflict("재고가 부족한 상품이 포함되어 있습니다.");
+                throw new ConflictException("재고가 부족한 상품이 포함되어 있습니다.");
             }
             product.decreaseStock(entry.getValue());
         }
@@ -238,10 +238,10 @@ public class PaymentTransactionService {
             ProductOption option = options.get(entry.getKey());
             OptionQuantity quantity = entry.getValue();
             if (option == null || !quantity.productId().equals(option.getProductId())) {
-                throw conflict("상품 옵션 재고 정보를 찾을 수 없습니다.");
+                throw new ConflictException("상품 옵션 재고 정보를 찾을 수 없습니다.");
             }
             if (option.getStockQuantity() < quantity.quantity()) {
-                throw conflict("재고가 부족한 상품 옵션이 포함되어 있습니다.");
+                throw new ConflictException("재고가 부족한 상품 옵션이 포함되어 있습니다.");
             }
             option.decreaseStock(quantity.quantity());
         }
@@ -258,7 +258,7 @@ public class PaymentTransactionService {
         try {
             return Math.addExact(first, second);
         } catch (ArithmeticException e) {
-            throw conflict("주문수량이 허용 범위를 초과했습니다.");
+            throw new ConflictException("주문수량이 허용 범위를 초과했습니다.");
         }
     }
 
@@ -271,7 +271,7 @@ public class PaymentTransactionService {
      */
     private OptionQuantity mergeOptionQuantity(OptionQuantity first, OptionQuantity second) {
         if (!first.productId().equals(second.productId())) {
-            throw conflict("상품 옵션 정보가 일치하지 않습니다.");
+            throw new ConflictException("상품 옵션 정보가 일치하지 않습니다.");
         }
         return new OptionQuantity(first.productId(), safeAddQuantity(first.quantity(), second.quantity()));
     }
@@ -342,26 +342,6 @@ public class PaymentTransactionService {
                 Function.identity(),
                 (first, duplicate) -> first,
                 HashMap::new));
-    }
-
-    /**
-     * 리소스를 찾을 수 없음을 나타내는 404 예외를 생성한다.
-     *
-     * @param message 응답에 사용할 오류 메시지
-     * @return 404 상태의 예외
-     */
-    private ResponseStatusException notFound(String message) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, message);
-    }
-
-    /**
-     * 현재 상태로 요청을 처리할 수 없음을 나타내는 409 예외를 생성한다.
-     *
-     * @param message 응답에 사용할 오류 메시지
-     * @return 409 상태의 예외
-     */
-    private ResponseStatusException conflict(String message) {
-        return new ResponseStatusException(HttpStatus.CONFLICT, message);
     }
 
     private record OptionQuantity(Long productId, int quantity) {

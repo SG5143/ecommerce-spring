@@ -19,6 +19,8 @@ import com.lsg.mingler.domain.product.entity.Category;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
 import com.lsg.mingler.global.error.AuthenticationException;
+import com.lsg.mingler.global.error.ConflictException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -32,10 +34,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -74,7 +74,8 @@ public class OrderService {
      * @param request            주문 생성 요청 (장바구니 항목 ID 목록, 주문자·수령인 정보, 배송 요청사항)
      * @return 생성된 주문서 정보. 비회원인 경우 {@code guestOrderToken} 원문을 포함.
      * @throws IllegalArgumentException 입력값 검증 실패 시 (400)
-     * @throws org.springframework.web.server.ResponseStatusException 소유권 불일치·재고 부족·판매 중단 상품 포함 시 (404/409)
+     * @throws ResourceNotFoundException 요청한 장바구니·상품 정보를 찾을 수 없는 경우
+     * @throws ConflictException 재고 부족·판매 중단 등 현재 상태와 주문 요청이 충돌하는 경우
      * @throws com.lsg.mingler.global.error.AuthenticationException 회원 계정 이상 시 (401)
      */
     @Transactional
@@ -170,19 +171,21 @@ public class OrderService {
      * @param guestCartTokenHash 비회원 장바구니 식별용 SHA-256 토큰 해시. 회원은 {@code null}
      * @return 잠금이 걸린 요청자 소유의 장바구니
      * @throws IllegalArgumentException 비회원인데 토큰 해시가 없을 때
-     * @throws org.springframework.web.server.ResponseStatusException 장바구니 없음·만료 시 (404)
+     * @throws ResourceNotFoundException 장바구니가 없거나 만료된 경우
      */
     private Cart requireOwnedCart(Long memberId, String guestCartTokenHash) {
         if (memberId != null) {
             // 수량 변경 API도 같은 잠금을 사용하므로 주문 생성 중 장바구니 변경을 막는다.
-            return cartRepository.findByMemberIdForUpdate(memberId).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+            return cartRepository.findByMemberIdForUpdate(memberId)
+                    .orElseThrow(() -> new ResourceNotFoundException("장바구니를 찾을 수 없습니다."));
         }
         if (guestCartTokenHash == null) {
             throw new IllegalArgumentException("비회원 장바구니 식별 정보가 필요합니다.");
         }
-        Cart cart = cartRepository.findByGuestTokenHashForUpdate(guestCartTokenHash).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+        Cart cart = cartRepository.findByGuestTokenHashForUpdate(guestCartTokenHash)
+                .orElseThrow(() -> new ResourceNotFoundException("장바구니를 찾을 수 없습니다."));
         if (cart.isExpired(LocalDateTime.now())) {
-            throw notFound("장바구니가 만료되었습니다.");
+            throw new ResourceNotFoundException("장바구니가 만료되었습니다.");
         }
         return cart;
     }
@@ -195,7 +198,7 @@ public class OrderService {
 
         // 개수가 다르면 타 장바구니 ID 또는 이미 삭제된 항목이 섞인 요청이다.
         if (itemMap.size() != requestedIds.size()) {
-            throw notFound("주문할 장바구니 상품을 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("주문할 장바구니 상품을 찾을 수 없습니다.");
         }
 
         // DB 조회 순서 대신 사용자가 선택한 순서를 유지해 응답 순서를 예측 가능하게 함.
@@ -271,10 +274,10 @@ public class OrderService {
     private ItemSnapshot createSnapshot(CartItem cartItem, SnapshotContext context) {
         Product product = context.products().get(cartItem.getProductId());
         if (product == null) {
-            throw notFound("상품을 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("상품을 찾을 수 없습니다.");
         }
         if (!product.isOnSale()) {
-            throw conflict("현재 판매 중이 아닌 상품이 포함되어 있습니다.");
+            throw new ConflictException("현재 판매 중이 아닌 상품이 포함되어 있습니다.");
         }
 
         ProductOption option = null;
@@ -284,19 +287,19 @@ public class OrderService {
         if (cartItem.getProductOptionId() != null) {
             option = context.options().get(cartItem.getProductOptionId());
             if (option == null) {
-                throw notFound("상품 옵션을 찾을 수 없습니다.");
+                throw new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다.");
             }
             if (!option.getProductId().equals(product.getId())) {
                 throw new IllegalArgumentException("상품에 속하지 않은 옵션이 포함되어 있습니다.");
             }
             if (!Boolean.TRUE.equals(option.getIsActive())) {
-                throw conflict("현재 선택할 수 없는 상품 옵션이 포함되어 있습니다.");
+                throw new ConflictException("현재 선택할 수 없는 상품 옵션이 포함되어 있습니다.");
             }
             stockQuantity = option.getStockQuantity();
             unitPrice = safeAdd(unitPrice, option.getExtraPrice());
         } else if (context.productIdsWithOptions().contains(product.getId())) {
             // 장바구니에 담은 뒤 옵션 구성이 추가된 경우 잘못된 단일 상품 주문을 차단한다.
-            throw conflict("상품 옵션을 다시 선택해주세요.");
+            throw new ConflictException("상품 옵션을 다시 선택해주세요.");
         }
 
         int quantity = cartItem.getQuantity();
@@ -304,12 +307,12 @@ public class OrderService {
             throw new IllegalArgumentException("주문수량은 1개 이상 99개 이하여야 합니다.");
         }
         if (stockQuantity < quantity) {
-            throw conflict("재고가 부족한 상품이 포함되어 있습니다.");
+            throw new ConflictException("재고가 부족한 상품이 포함되어 있습니다.");
         }
 
         Category category = context.categories().get(product.getCategoryId());
         if (category == null) {
-            throw notFound("상품 카테고리를 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("상품 카테고리를 찾을 수 없습니다.");
         }
         int lineAmount = safeMultiply(unitPrice, quantity);
         return new ItemSnapshot(
@@ -448,14 +451,6 @@ public class OrderService {
             result.put(idExtractor.apply(value), value);
         }
         return result;
-    }
-
-    private ResponseStatusException notFound(String message) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, message);
-    }
-
-    private ResponseStatusException conflict(String message) {
-        return new ResponseStatusException(HttpStatus.CONFLICT, message);
     }
 
     private record OrdererSnapshot(String name, String phone, String email) {}

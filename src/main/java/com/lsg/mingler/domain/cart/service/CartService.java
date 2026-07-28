@@ -11,6 +11,8 @@ import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
 import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
+import com.lsg.mingler.global.error.ConflictException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -22,11 +24,9 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 회원 및 비회원 장바구니의 조회, 상품 변경, 로그인 병합, 만료 정리를 담당한다.
@@ -140,7 +140,8 @@ public class CartService {
     public CartResponse updateQuantity(Long memberId, String guestTokenHash, Long itemId, Integer quantity) {
         validateQuantity(quantity);
         Cart cart = requireCart(memberId, guestTokenHash);
-        CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), itemId).orElseThrow(() -> notFound("장바구니 상품을 찾을 수 없습니다."));
+        CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("장바구니 상품을 찾을 수 없습니다."));
         ValidatedVariant variant = validateVariant(new VariantKey(item.getProductId(), item.getProductOptionId()), quantity);
         validateQuantityAgainstStock(quantity, variant.stockQuantity());
         item.changeQuantity(quantity);
@@ -170,7 +171,7 @@ public class CartService {
         // 개별 조회 N회를 피하면서 다른 장바구니 항목이 섞였는지도 함께 확인한다.
         List<CartItem> ownedItems = cartItemRepository.findAllByCartIdAndIdIn(cart.getId(), distinctIds);
         if (ownedItems.size() != distinctIds.size()) {
-            throw notFound("장바구니 상품을 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("장바구니 상품을 찾을 수 없습니다.");
         }
         cartItemRepository.deleteAllByCartIdAndIdIn(cart.getId(), distinctIds);
         extendGuestExpiration(cart);
@@ -283,9 +284,10 @@ public class CartService {
      * 옵션 상품은 활성 옵션 재고를, 단일 구성 상품은 상품 재고를 사용한다.
      */
     private ValidatedVariant validateVariant(VariantKey key, int requestedQuantity) {
-        Product product = productRepository.findById(key.productId()).orElseThrow(() -> notFound("상품을 찾을 수 없습니다."));
+        Product product = productRepository.findById(key.productId())
+                .orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다."));
         if (!product.isOnSale()) {
-            throw conflict("현재 판매 중인 상품이 아닙니다.");
+            throw new ConflictException("현재 판매 중인 상품이 아닙니다.");
         }
 
         boolean hasOptions = productOptionRepository.existsByProductId(product.getId());
@@ -298,12 +300,13 @@ public class CartService {
             if (key.optionId() == null) {
                 throw new IllegalArgumentException("상품 옵션을 선택해주세요.");
             }
-            option = productOptionRepository.findById(key.optionId()).orElseThrow(() -> notFound("상품 옵션을 찾을 수 없습니다."));
+            option = productOptionRepository.findById(key.optionId())
+                    .orElseThrow(() -> new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다."));
             if (!product.getId().equals(option.getProductId())) {
                 throw new IllegalArgumentException("상품에 속하지 않은 옵션입니다.");
             }
             if (!Boolean.TRUE.equals(option.getIsActive())) {
-                throw conflict("현재 선택할 수 없는 상품 옵션입니다.");
+                throw new ConflictException("현재 선택할 수 없는 상품 옵션입니다.");
             }
             stockQuantity = option.getStockQuantity();
             currentUnitPrice += option.getExtraPrice();
@@ -321,10 +324,11 @@ public class CartService {
     /** 요청 수량이 품절 상태 또는 현재 재고를 초과하는지 검증한다. */
     private void validateQuantityAgainstStock(int quantity, int stockQuantity) {
         if (stockQuantity <= 0) {
-            throw conflict("품절된 상품입니다.");
+            throw new ConflictException("품절된 상품입니다.");
         }
         if (quantity > stockQuantity) {
-            throw conflict("재고가 부족합니다. 최대 " + stockQuantity + "개까지 담을 수 있습니다.");
+            throw new ConflictException(
+                    "재고가 부족합니다. 최대 " + stockQuantity + "개까지 담을 수 있습니다.");
         }
     }
 
@@ -355,7 +359,8 @@ public class CartService {
 
     /** 변경 작업을 위해 장바구니를 잠금 조회하고, 없거나 만료됐으면 404 예외를 발생시킨다. */
     private Cart requireCart(Long memberId, String guestTokenHash) {
-        return findCart(memberId, guestTokenHash, true).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+        return findCart(memberId, guestTokenHash, true)
+                .orElseThrow(() -> new ResourceNotFoundException("장바구니를 찾을 수 없습니다."));
     }
 
     /**
@@ -408,7 +413,7 @@ public class CartService {
         try {
             ValidatedVariant variant = validateVariant(new VariantKey(item.getProductId(), item.getProductOptionId()), 1);
             return Math.min(variant.stockQuantity(), MAX_ITEM_QUANTITY);
-        } catch (ResponseStatusException | IllegalArgumentException e) {
+        } catch (ResourceNotFoundException | ConflictException | IllegalArgumentException e) {
             return MAX_ITEM_QUANTITY;
         }
     }
@@ -500,16 +505,6 @@ public class CartService {
     private boolean sameVariant(CartItem item, VariantKey key) {
         return item.getProductId().equals(key.productId())
                 && java.util.Objects.equals(item.getProductOptionId(), key.optionId());
-    }
-
-    /** 서비스 검증 실패를 HTTP 404 예외로 변환한다. */
-    private ResponseStatusException notFound(String message) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, message);
-    }
-
-    /** 현재 상품 상태와 요청이 충돌하는 상황을 HTTP 409 예외로 변환한다. */
-    private ResponseStatusException conflict(String message) {
-        return new ResponseStatusException(HttpStatus.CONFLICT, message);
     }
 
     /** 상품과 선택 옵션 조합을 중복 제거 및 조회 키로 사용하는 값 객체 */
