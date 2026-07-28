@@ -35,14 +35,14 @@ public class CartApiController {
     public ResponseEntity<CartResponse> getCart(
             @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken) {
-        return ResponseEntity.ok(cartService.getCart(memberId, hash(guestToken)));
+        return ResponseEntity.ok(cartService.getCart(memberId, guestCartTokenManager.hash(guestToken)));
     }
 
     @GetMapping("/count")
     public ResponseEntity<CartCountResponse> getCartCount(
             @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken) {
-        int totalQuantity = cartService.getCartCount(memberId, hash(guestToken));
+        int totalQuantity = cartService.getCartCount(memberId, guestCartTokenManager.hash(guestToken));
         return ResponseEntity.ok(new CartCountResponse(totalQuantity));
     }
 
@@ -56,7 +56,7 @@ public class CartApiController {
         if (memberId == null && (effectiveGuestToken == null || effectiveGuestToken.isBlank())) {
             effectiveGuestToken = guestCartTokenManager.generate();
         }
-        CartResponse cart = cartService.addItems(memberId, hash(effectiveGuestToken), request);
+        CartResponse cart = cartService.addItems(memberId, guestCartTokenManager.hash(effectiveGuestToken), request);
         if (memberId == null) {
             guestCartTokenManager.issueCookie(response, effectiveGuestToken);
         }
@@ -70,8 +70,7 @@ public class CartApiController {
             @PathVariable Long itemId,
             @RequestBody CartItemQuantityUpdateRequest request,
             HttpServletResponse response) {
-        CartResponse cart = cartService.updateQuantity(
-                memberId, hash(guestToken), itemId, request.quantity());
+        CartResponse cart = cartService.updateQuantity(memberId, guestCartTokenManager.hash(guestToken), itemId, request.quantity());
         refreshGuestCookie(response, memberId, guestToken);
         return ResponseEntity.ok(cart);
     }
@@ -82,7 +81,7 @@ public class CartApiController {
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken,
             @RequestParam List<Long> ids,
             HttpServletResponse response) {
-        CartResponse cart = cartService.deleteItems(memberId, hash(guestToken), ids);
+        CartResponse cart = cartService.deleteItems(memberId, guestCartTokenManager.hash(guestToken), ids);
         refreshGuestCookie(response, memberId, guestToken);
         return ResponseEntity.ok(cart);
     }
@@ -92,15 +91,11 @@ public class CartApiController {
             @AuthenticationPrincipal Long memberId,
             @CookieValue(name = GuestCartTokenManager.COOKIE_NAME, required = false) String guestToken,
             HttpServletResponse response) {
-        CartMergeResponse result = cartService.mergeGuestCart(memberId, hash(guestToken));
+        CartMergeResponse result = cartService.mergeGuestCart(memberId, guestCartTokenManager.hash(guestToken));
         if (guestToken != null && !guestToken.isBlank()) {
             guestCartTokenManager.expireCookie(response);
         }
         return ResponseEntity.ok(result);
-    }
-
-    private String hash(String guestToken) {
-        return guestCartTokenManager.hash(guestToken);
     }
 
     private void refreshGuestCookie(HttpServletResponse response, Long memberId, String guestToken) {
