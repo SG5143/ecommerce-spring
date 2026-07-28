@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>결제 확인 - Mingler</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/checkout-state.js}" defer></script>
+    <script th:src="@{/js/checkout-payment.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="checkout-page checkout-payment-page">
+    <ol class="checkout-steps" aria-label="주문 진행 단계">
+        <li>01 주문서 작성</li>
+        <li class="is-current" aria-current="step">02 결제</li>
+        <li>03 완료</li>
+    </ol>
+    <h1 class="checkout-title">PAYMENT</h1>
+    <p id="payment-message" class="checkout-message" role="alert" aria-live="assertive"></p>
+
+    <div id="payment-content" class="checkout-layout" hidden>
+        <div class="checkout-form-column">
+            <section class="checkout-section">
+                <h2>주문 상품</h2>
+                <p class="checkout-order-number">주문번호 <strong id="payment-order-number"></strong></p>
+                <ul id="payment-order-items" class="checkout-order-items checkout-order-items-large"></ul>
+            </section>
+
+            <section class="checkout-section">
+                <h2>결제수단</h2>
+                <label class="checkout-payment-method">
+                    <input type="radio" name="paymentMethod" value="CARD" checked/>
+                    <span>신용·체크카드</span>
+                    <small>가상 결제로 즉시 승인됩니다.</small>
+                </label>
+            </section>
+        </div>
+
+        <aside class="checkout-summary">
+            <h2>결제 금액</h2>
+            <dl class="checkout-totals">
+                <div>
+                    <dt>상품금액</dt>
+                    <dd id="payment-merchandise-amount">₩0</dd>
+                </div>
+                <div>
+                    <dt>할인금액</dt>
+                    <dd id="payment-discount-amount">-₩0</dd>
+                </div>
+                <div>
+                    <dt>배송비</dt>
+                    <dd id="payment-shipping-fee">₩0</dd>
+                </div>
+                <div class="checkout-total-final">
+                    <dt>최종 결제금액</dt>
+                    <dd id="payment-total-amount">₩0</dd>
+                </div>
+            </dl>
+            <p class="checkout-summary-note">결제 버튼을 여러 번 눌러도 동일한 결제는 한 번만 처리됩니다.</p>
+            <button type="button" id="payment-confirm" class="checkout-primary-btn">결제하기</button>
+            <a th:href="@{/cart}" class="checkout-secondary-link">결제하지 않고 장바구니로 이동</a>
+        </aside>
+    </div>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>
