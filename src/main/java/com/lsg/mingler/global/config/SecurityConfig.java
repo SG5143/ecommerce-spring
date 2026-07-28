@@ -46,6 +46,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/cart", "/api/v1/cart/**").permitAll()
                         // 주문서 생성은 회원·비회원 공용
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders").permitAll()
+                        // 가상 결제 승인은 회원 JWT 또는 비회원 주문 토큰으로 소유권 확인
+                        .requestMatchers(HttpMethod.POST, "/api/v1/payments/confirm").permitAll()
                         // 그 외 API 는 인증 필요 (ADMIN 전용 경로는 향후 hasRole 규칙 추가 예정)
                         .anyRequest().authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)

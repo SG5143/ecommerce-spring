@@ -90,4 +90,20 @@ public class Product {
         return STATUS_ON_SALE.equals(status);
     }
 
+    /**
+     * 상품의 현재 재고에서 주문 수량을 차감한다.
+     *
+     * @param quantity 차감할 수량
+     * @throws IllegalArgumentException 차감 수량이 0 이하인 경우
+     * @throws IllegalStateException 현재 재고보다 많은 수량을 차감하려는 경우
+     */
+    public void decreaseStock(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("차감 수량은 0보다 커야 합니다.");
+        }
+        if (stockQuantity < quantity) {
+            throw new IllegalStateException("상품 재고가 부족합니다.");
+        }
+        this.stockQuantity -= quantity;
+    }
 }
