@@ -77,6 +77,9 @@ class OrderServiceTest {
     @Captor
     private ArgumentCaptor<List<OrderItem>> orderItemsCaptor;
 
+    @Captor
+    private ArgumentCaptor<Order> orderCaptor;
+
     @InjectMocks
     private OrderService orderService;
 
@@ -144,6 +147,47 @@ class OrderServiceTest {
         assertThat(response.guestOrderToken()).isEqualTo("raw-order-token");
         verify(orderRepository).save(any(Order.class));
         verify(memberRepository, never()).findById(any());
+    }
+
+    @Test
+    void 비회원_주문의_입력문자열은_정규화해서_저장한다() {
+        Cart cart = guestCart(1L, "cart-hash");
+        CartItem cartItem = cartItem(100L, 1L, 10L, null, 1);
+        Product product = product(10L, 30L, 12000, null, 3);
+        Category category = category(30L, "상의");
+        stubSnapshotData(cartItem, product, null, category);
+        when(cartRepository.findByGuestTokenHashForUpdate("cart-hash")).thenReturn(Optional.of(cart));
+        when(identifierGenerator.generateOrderNumber()).thenReturn("ORD-TEST");
+        when(orderRepository.existsByOrderNumber("ORD-TEST")).thenReturn(false);
+        when(identifierGenerator.generateGuestToken())
+                .thenReturn(new OrderIdentifierGenerator.GuestToken("raw-order-token", "order-hash"));
+        when(orderRepository.existsByGuestTokenHash("order-hash")).thenReturn(false);
+        stubOrderSaves();
+        OrderCreateRequest request = new OrderCreateRequest(
+                List.of(100L),
+                new OrderCreateRequest.Orderer(
+                        " 비회원 ",
+                        " 010-9999-8888 ",
+                        " guest@example.com "),
+                new OrderCreateRequest.Receiver(
+                        " 수령인 ",
+                        " 010-1234-5678 ",
+                        " 12345 ",
+                        " 서울시 강남구 ",
+                        "   "),
+                " 문 앞에 놓아주세요. ");
+
+        orderService.createOrder(null, "cart-hash", request);
+
+        verify(orderRepository).save(orderCaptor.capture());
+        assertThat(orderCaptor.getValue()).satisfies(order -> {
+            assertThat(order.getOrdererName()).isEqualTo("비회원");
+            assertThat(order.getOrdererPhone()).isEqualTo("010-9999-8888");
+            assertThat(order.getOrdererEmail()).isEqualTo("guest@example.com");
+            assertThat(order.getReceiverName()).isEqualTo("수령인");
+            assertThat(order.getAddressDetail()).isNull();
+            assertThat(order.getDeliveryMessage()).isEqualTo("문 앞에 놓아주세요.");
+        });
     }
 
     @Test

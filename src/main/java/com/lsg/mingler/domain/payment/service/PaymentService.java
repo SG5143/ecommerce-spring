@@ -4,6 +4,7 @@ import com.lsg.mingler.domain.payment.dto.PaymentConfirmRequest;
 import com.lsg.mingler.domain.payment.dto.PaymentConfirmResponse;
 import com.lsg.mingler.global.error.AuthenticationException;
 import com.lsg.mingler.global.error.DuplicateException;
+import com.lsg.mingler.global.validation.InputValidator;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,11 +33,7 @@ public class PaymentService {
      * @throws IllegalArgumentException 요청값이 없거나 지원하지 않는 결제수단인 경우
      * @throws DuplicateException 이미 처리된 멱등성 키와 충돌하는 경우
      */
-    public PaymentConfirmResponse confirm(
-            Long memberId,
-            String guestOrderTokenHash,
-            String idempotencyKey,
-            PaymentConfirmRequest request) {
+    public PaymentConfirmResponse confirm(Long memberId, String guestOrderTokenHash, String idempotencyKey, PaymentConfirmRequest request) {
         if (memberId == null && guestOrderTokenHash == null) {
             throw new AuthenticationException("비회원 주문 조회 토큰이 필요합니다.");
         }
@@ -44,12 +41,12 @@ public class PaymentService {
             throw new IllegalArgumentException("결제 요청 정보가 필요합니다.");
         }
 
-        String normalizedOrderNumber = requireText(
+        String normalizedOrderNumber = InputValidator.requireText(
                 request.orderNumber(),
                 MAX_ORDER_NUMBER_LENGTH,
                 "주문번호가 필요합니다.",
                 "주문번호는 50자 이하여야 합니다.");
-        String normalizedIdempotencyKey = requireText(
+        String normalizedIdempotencyKey = InputValidator.requireText(
                 idempotencyKey,
                 MAX_IDEMPOTENCY_KEY_LENGTH,
                 "멱등성 키가 필요합니다.",
@@ -57,7 +54,7 @@ public class PaymentService {
         if (request.amount() == null || request.amount() <= 0) {
             throw new IllegalArgumentException("결제금액은 0원보다 커야 합니다.");
         }
-        String normalizedPaymentMethod = requireText(
+        String normalizedPaymentMethod = InputValidator.requireText(
                 request.paymentMethod(),
                 30,
                 "결제수단이 필요합니다.",
@@ -86,31 +83,6 @@ public class PaymentService {
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateException("이미 처리된 결제 요청입니다.");
         }
-    }
-
-    /**
-     * 필수 문자열의 공백을 제거하고 최대 길이를 검증한다.
-     *
-     * @param value 검증할 문자열
-     * @param maximumLength 허용할 최대 길이
-     * @param requiredMessage 값이 없을 때 사용할 예외 메시지
-     * @param lengthMessage 최대 길이를 초과할 때 사용할 예외 메시지
-     * @return 앞뒤 공백이 제거된 문자열
-     * @throws IllegalArgumentException 값이 없거나 최대 길이를 초과한 경우
-     */
-    private String requireText(
-            String value,
-            int maximumLength,
-            String requiredMessage,
-            String lengthMessage) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(requiredMessage);
-        }
-        String normalized = value.trim();
-        if (normalized.length() > maximumLength) {
-            throw new IllegalArgumentException(lengthMessage);
-        }
-        return normalized;
     }
 
     record PaymentConfirmCommand(

@@ -21,6 +21,7 @@ import com.lsg.mingler.domain.product.entity.ProductOption;
 import com.lsg.mingler.global.error.AuthenticationException;
 import com.lsg.mingler.global.error.ConflictException;
 import com.lsg.mingler.global.error.ResourceNotFoundException;
+import com.lsg.mingler.global.validation.InputValidator;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -30,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
@@ -44,8 +44,6 @@ public class OrderService {
     private static final int MAX_ORDER_LINES = 100; // 주문 한도
     private static final int MAX_QUANTITY = 99; // 주문수량 한도
     private static final int IDENTIFIER_GENERATION_ATTEMPTS = 5; // 식별자 재시도 횟수
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"); // 이메일 형식
-
     private final OrderRepository orderRepository; // 주문 저장소
     private final OrderItemRepository orderItemRepository; // 주문 상품 저장소
     private final CartRepository cartRepository; // 장바구니 저장소
@@ -89,7 +87,7 @@ public class OrderService {
         // 2. 회원은 회원정보를, 비회원은 요청값을 주문자 스냅샷으로 사용한다.
         OrdererSnapshot orderer = resolveOrderer(memberId, request.orderer());
         ReceiverSnapshot receiver = validateReceiver(request.receiver());
-        String deliveryMessage = normalizeOptional(request.deliveryMessage(), 255, "배송 요청사항은 255자 이하여야 합니다.");
+        String deliveryMessage = InputValidator.optionalText(request.deliveryMessage(), 255, "배송 요청사항은 255자 이하여야 합니다.");
 
         // 3. 장바구니에 담았을 당시 값이 아닌 현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.
         SnapshotContext context = loadSnapshotContext(cartItems);
@@ -226,9 +224,20 @@ public class OrderService {
             throw new IllegalArgumentException("비회원 주문자 정보를 입력해주세요.");
         }
         return new OrdererSnapshot(
-                requireText(requestOrderer.name(), 50, "주문자명을 입력해주세요.", "주문자명은 50자 이하여야 합니다."),
-                requireText(requestOrderer.phone(), 20, "주문자 연락처를 입력해주세요.", "주문자 연락처는 20자 이하여야 합니다."),
-                validateEmail(requestOrderer.email()));
+                InputValidator.requireText(
+                        requestOrderer.name(),
+                        50,
+                        "주문자명을 입력해주세요.",
+                        "주문자명은 50자 이하여야 합니다."),
+                InputValidator.requireText(
+                        requestOrderer.phone(),
+                        20,
+                        "주문자 연락처를 입력해주세요.",
+                        "주문자 연락처는 20자 이하여야 합니다."),
+                InputValidator.normalizeOptionalEmail(
+                        requestOrderer.email(),
+                        "이메일은 255자 이하여야 합니다.",
+                        "올바른 이메일 형식이 아닙니다."));
     }
 
     private ReceiverSnapshot validateReceiver(OrderCreateRequest.Receiver receiver) {
@@ -236,11 +245,30 @@ public class OrderService {
             throw new IllegalArgumentException("수령인 정보를 입력해주세요.");
         }
         return new ReceiverSnapshot(
-                requireText(receiver.name(), 50, "수령인명을 입력해주세요.", "수령인명은 50자 이하여야 합니다."),
-                requireText(receiver.phone(), 20, "수령인 연락처를 입력해주세요.", "수령인 연락처는 20자 이하여야 합니다."),
-                requireText(receiver.zipcode(), 10, "우편번호를 입력해주세요.", "우편번호는 10자 이하여야 합니다."),
-                requireText(receiver.address(), 255, "주소를 입력해주세요.", "주소는 255자 이하여야 합니다."),
-                normalizeOptional(receiver.addressDetail(), 255, "상세주소는 255자 이하여야 합니다."));
+                InputValidator.requireText(
+                        receiver.name(),
+                        50,
+                        "수령인명을 입력해주세요.",
+                        "수령인명은 50자 이하여야 합니다."),
+                InputValidator.requireText(
+                        receiver.phone(),
+                        20,
+                        "수령인 연락처를 입력해주세요.",
+                        "수령인 연락처는 20자 이하여야 합니다."),
+                InputValidator.requireText(
+                        receiver.zipcode(),
+                        10,
+                        "우편번호를 입력해주세요.",
+                        "우편번호는 10자 이하여야 합니다."),
+                InputValidator.requireText(
+                        receiver.address(),
+                        255,
+                        "주소를 입력해주세요.",
+                        "주소는 255자 이하여야 합니다."),
+                InputValidator.optionalText(
+                        receiver.addressDetail(),
+                        255,
+                        "상세주소는 255자 이하여야 합니다."));
     }
 
     /**
@@ -397,36 +425,6 @@ public class OrderService {
                 order.getTotalAmount(),
                 items,
                 guestOrderToken == null ? null : guestOrderToken.rawToken());
-    }
-
-    private String requireText(String value, int maximumLength, String requiredMessage, String lengthMessage) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(requiredMessage);
-        }
-        String normalized = value.trim();
-        if (normalized.length() > maximumLength) {
-            throw new IllegalArgumentException(lengthMessage);
-        }
-        return normalized;
-    }
-
-    private String normalizeOptional(String value, int maximumLength, String lengthMessage) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        String normalized = value.trim();
-        if (normalized.length() > maximumLength) {
-            throw new IllegalArgumentException(lengthMessage);
-        }
-        return normalized;
-    }
-
-    private String validateEmail(String email) {
-        String normalized = normalizeOptional(email, 255, "이메일은 255자 이하여야 합니다.");
-        if (normalized != null && !EMAIL_PATTERN.matcher(normalized).matches()) {
-            throw new IllegalArgumentException("올바른 이메일 형식이 아닙니다.");
-        }
-        return normalized;
     }
 
     private int safeAdd(int first, int second) {
