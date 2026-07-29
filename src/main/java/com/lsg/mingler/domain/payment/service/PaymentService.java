@@ -3,11 +3,13 @@ package com.lsg.mingler.domain.payment.service;
 import com.lsg.mingler.domain.payment.dto.PaymentConfirmRequest;
 import com.lsg.mingler.domain.payment.dto.PaymentConfirmResponse;
 import com.lsg.mingler.global.error.AuthenticationException;
+import com.lsg.mingler.global.error.ConflictException;
 import com.lsg.mingler.global.error.DuplicateException;
 import com.lsg.mingler.global.error.PaymentApprovalException;
 import com.lsg.mingler.global.util.HashUtils;
 import com.lsg.mingler.global.validation.InputValidator;
 import java.util.Locale;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -114,25 +116,56 @@ public class PaymentService {
         try {
             return transactionService.confirm(memberId, guestOrderTokenHash, command);
         } catch (PaymentApprovalException failure) {
-            recordFailureSafely(memberId, guestOrderTokenHash, command, failure);
+            Optional<PaymentConfirmResponse> existingSuccess =
+                    recordFailureSafely(memberId, guestOrderTokenHash, command, failure);
+            if (existingSuccess.isPresent()) {
+                return existingSuccess.get();
+            }
             throw failure;
         }
     }
 
-    private void recordFailureSafely(Long memberId, String guestOrderTokenHash, PaymentConfirmCommand command, PaymentApprovalException failure) {
+    private Optional<PaymentConfirmResponse> recordFailureSafely(Long memberId, String guestOrderTokenHash, PaymentConfirmCommand command, PaymentApprovalException failure) {
         try {
-            failureTransactionService.recordFailure(memberId, guestOrderTokenHash, command, failure);
+            return failureTransactionService.recordFailure(memberId, guestOrderTokenHash, command, failure);
         } catch (DataIntegrityViolationException duplicateFailure) {
             log.info(
-                    "동일한 멱등성 키의 실패 이력이 이미 존재합니다. (멱등성 키 중복). orderNumber={}, failureCode={}",
+                    "결제 실패 이력 저장 중 멱등성 키 경합을 감지했습니다. orderNumber={}, failureCode={}",
                     command.orderNumber(),
                     failure.getFailureCode());
+            return resolveExistingAfterConstraintConflict(
+                    memberId,
+                    guestOrderTokenHash,
+                    command,
+                    failure);
+        } catch (DuplicateException | ConflictException resultConflict) {
+            throw resultConflict;
         } catch (RuntimeException auditFailure) {
             log.error(
                     "결제 실패 이력을 기록하지 못했습니다. orderNumber={}, failureCode={}",
                     command.orderNumber(),
                     failure.getFailureCode(),
                     auditFailure);
+            return Optional.empty();
+        }
+    }
+
+    private Optional<PaymentConfirmResponse> resolveExistingAfterConstraintConflict(Long memberId, String guestOrderTokenHash, PaymentConfirmCommand command, PaymentApprovalException failure) {
+        try {
+            return failureTransactionService.resolveExistingPayment(
+                    memberId,
+                    guestOrderTokenHash,
+                    command,
+                    failure);
+        } catch (DuplicateException | ConflictException resultConflict) {
+            throw resultConflict;
+        } catch (RuntimeException reconciliationFailure) {
+            log.error(
+                    "멱등성 키 경합 후 기존 결제 결과를 확인하지 못했습니다. orderNumber={}, failureCode={}",
+                    command.orderNumber(),
+                    failure.getFailureCode(),
+                    reconciliationFailure);
+            return Optional.empty();
         }
     }
 

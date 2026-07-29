@@ -14,7 +14,6 @@ import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
 import com.lsg.mingler.global.error.ConflictException;
-import com.lsg.mingler.global.error.DuplicateException;
 import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +53,7 @@ public class PaymentTransactionService {
     PaymentConfirmResponse confirm(Long memberId, String guestOrderTokenHash, PaymentService.PaymentConfirmCommand command) {
         Order order = orderRepository.findByOrderNumberForUpdate(command.orderNumber()).orElseThrow(()
                 -> new ResourceNotFoundException("주문을 찾을 수 없습니다."));
-        validateOwner(order, memberId, guestOrderTokenHash);
+        PaymentOrderOwnershipPolicy.validate(order, memberId, guestOrderTokenHash);
 
         Optional<Payment> existing = findExistingPayment(order.getId(), memberId, command.idempotencyKey());
         if (existing.isPresent()) {
@@ -87,26 +86,6 @@ public class PaymentTransactionService {
     }
 
     /**
-     * 회원 ID 또는 비회원 주문 토큰 해시가 주문의 소유자 정보와 일치하는지 확인한다.
-     * 소유하지 않은 주문의 존재 여부가 노출되지 않도록 불일치 시 404로 처리한다.
-     *
-     * @param order 소유권을 확인할 주문
-     * @param memberId 인증된 회원 ID
-     * @param guestOrderTokenHash 비회원 주문 토큰 해시
-     */
-    private void validateOwner(Order order, Long memberId, String guestOrderTokenHash) {
-        if (memberId != null) {
-            if (!memberId.equals(order.getMemberId())) {
-                throw new ResourceNotFoundException("주문을 찾을 수 없습니다.");
-            }
-            return;
-        }
-        if (guestOrderTokenHash == null || !guestOrderTokenHash.equals(order.getGuestTokenHash())) {
-            throw new ResourceNotFoundException("주문을 찾을 수 없습니다.");
-        }
-    }
-
-    /**
      * 요청 소유자 범위에서 같은 멱등성 키로 저장된 결제를 조회한다.
      *
      * @param orderId 비회원 결제를 구분할 주문 ID
@@ -131,17 +110,11 @@ public class PaymentTransactionService {
      * @throws DuplicateException 기존 결제와 현재 요청 내용이 다른 경우
      */
     private PaymentConfirmResponse replayExisting(Order order, Payment payment, PaymentService.PaymentConfirmCommand command) {
-        boolean sameRequest = order.getId().equals(payment.getOrderId())
-                && command.amount().equals(payment.getAmount())
-                && command.paymentMethod().equals(payment.getPaymentMethod())
-                && PG_PROVIDER.equals(payment.getPgProvider());
-        if (!sameRequest) {
-            throw new DuplicateException("결제 요청 정보가 이전 요청과 달라 처리할 수 없습니다. 결제 내용을 확인한 후 다시 시도해주세요.");
-        }
+        PaymentRequestPolicy.validateSameRequest(order, payment, command);
         if (payment.getStatus() != PaymentStatus.SUCCESS) {
             throw new ConflictException("동일한 결제 요청이 처리 중이거나 완료되지 않았습니다.");
         }
-        return toResponse(order, payment);
+        return PaymentConfirmResponseMapper.from(order, payment);
     }
 
     /**
@@ -305,16 +278,7 @@ public class PaymentTransactionService {
      * @return API 결제 승인 응답
      */
     private PaymentConfirmResponse toResponse(Order order, Payment payment) {
-        return new PaymentConfirmResponse(
-                payment.getPaymentNumber(),
-                order.getOrderNumber(),
-                payment.getStatus(),
-                order.getStatus(),
-                payment.getAmount(),
-                payment.getPaymentMethod(),
-                payment.getPgProvider(),
-                payment.getPgTransactionKey(),
-                payment.getApprovedAt());
+        return PaymentConfirmResponseMapper.from(order, payment);
     }
 
     /**
