@@ -30,4 +30,24 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("재고가 부족합니다."));
     }
+
+    @Test
+    void 결제승인_거절은_402_응답으로_변환한다() {
+        PaymentDeclinedException exception = new PaymentDeclinedException();
+
+        ResponseEntity<ErrorResponse> response = handler.handlePaymentDeclined(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYMENT_REQUIRED);
+        assertThat(response.getBody()).isEqualTo(new ErrorResponse(exception.getMessage()));
+    }
+
+    @Test
+    void 결제승인_지연은_504_응답으로_변환한다() {
+        PaymentApprovalTimeoutException exception = new PaymentApprovalTimeoutException();
+
+        ResponseEntity<ErrorResponse> response = handler.handlePaymentApprovalTimeout(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
+        assertThat(response.getBody()).isEqualTo(new ErrorResponse(exception.getMessage()));
+    }
 }

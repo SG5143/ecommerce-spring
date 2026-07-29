@@ -15,6 +15,8 @@ import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
 import com.lsg.mingler.global.error.ConflictException;
 import com.lsg.mingler.global.error.DuplicateException;
+import com.lsg.mingler.global.error.PaymentApprovalTimeoutException;
+import com.lsg.mingler.global.error.PaymentDeclinedException;
 import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -56,6 +59,9 @@ class PaymentTransactionServiceTest {
 
     @Mock
     private PaymentIdentifierGenerator identifierGenerator;
+
+    @Mock
+    private VirtualPaymentGateway virtualPaymentGateway;
 
     @Captor
     private ArgumentCaptor<Payment> paymentCaptor;
@@ -168,6 +174,42 @@ class PaymentTransactionServiceTest {
     }
 
     @Test
+    void 가상PG_승인거절은_재고감산_후_예외를_전파하고_주문을_완료하지_않는다() {
+        Order order = memberOrder(500L, 7L, 20_000);
+        OrderItem item = orderItem(600L, 500L, 10L, null, 10_000, 2);
+        Product product = product(10L, 5);
+        stubNewMemberPayment(order, item);
+        when(productRepository.findAllByIdInForUpdate(Set.of(10L))).thenReturn(List.of(product));
+        doThrow(new PaymentDeclinedException())
+                .when(virtualPaymentGateway).approve(VirtualPaymentScenario.FAILED);
+
+        assertThatThrownBy(() -> paymentTransactionService.confirm(
+                7L, null, command(20_000, VirtualPaymentScenario.FAILED)))
+                .isInstanceOf(PaymentDeclinedException.class);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void 가상PG_승인지연은_즉시_타임아웃_예외를_전파하고_결제를_저장하지_않는다() {
+        Order order = memberOrder(500L, 7L, 20_000);
+        OrderItem item = orderItem(600L, 500L, 10L, null, 10_000, 2);
+        Product product = product(10L, 5);
+        stubNewMemberPayment(order, item);
+        when(productRepository.findAllByIdInForUpdate(Set.of(10L))).thenReturn(List.of(product));
+        doThrow(new PaymentApprovalTimeoutException())
+                .when(virtualPaymentGateway).approve(VirtualPaymentScenario.DELAYED);
+
+        assertThatThrownBy(() -> paymentTransactionService.confirm(
+                7L, null, command(20_000, VirtualPaymentScenario.DELAYED)))
+                .isInstanceOf(PaymentApprovalTimeoutException.class);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
     void 동일한_성공_결제요청은_재고차감없이_기존응답을_반환한다() {
         Order order = memberOrder(500L, 7L, 20_000);
         order.changeStatus(OrderStatus.PAID);
@@ -184,6 +226,33 @@ class PaymentTransactionServiceTest {
         verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
         verify(productRepository, never()).findAllByIdInForUpdate(any());
         verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void 동일한_실패_결제요청은_재고차감없이_새키_재시도를_요청한다() {
+        Order order = memberOrder(500L, 7L, 20_000);
+        Payment payment = Payment.builder()
+                .paymentNumber("PAY-FAILED-1")
+                .orderId(500L)
+                .memberId(7L)
+                .idempotencyKey("key-1")
+                .pgProvider("VIRTUAL")
+                .paymentMethod("CARD")
+                .amount(20_000)
+                .build();
+        payment.recordFailure("VIRTUAL_DECLINED", "승인 거절");
+        payment.changeStatus(PaymentStatus.FAILED);
+        when(orderRepository.findByOrderNumberForUpdate("ORD-1")).thenReturn(Optional.of(order));
+        when(paymentRepository.findByMemberIdAndIdempotencyKey(7L, "key-1"))
+                .thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentTransactionService.confirm(
+                7L, null, command(20_000)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("완료되지 않았습니다");
+
+        verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
+        verify(productRepository, never()).findAllByIdInForUpdate(any());
     }
 
     @Test
@@ -230,7 +299,11 @@ class PaymentTransactionServiceTest {
     }
 
     private PaymentService.PaymentConfirmCommand command(int amount) {
-        return new PaymentService.PaymentConfirmCommand("ORD-1", amount, "CARD", "key-1");
+        return command(amount, VirtualPaymentScenario.SUCCESS);
+    }
+
+    private PaymentService.PaymentConfirmCommand command(int amount, VirtualPaymentScenario scenario) {
+        return new PaymentService.PaymentConfirmCommand("ORD-1", amount, "CARD", "key-1", scenario);
     }
 
     private Order memberOrder(Long id, Long memberId, int amount) {
