@@ -1,5 +1,6 @@
 package com.lsg.mingler.domain.payment.service;
 
+import com.lsg.mingler.domain.cart.dao.CartItemRepository;
 import com.lsg.mingler.domain.order.dao.OrderItemRepository;
 import com.lsg.mingler.domain.order.dao.OrderRepository;
 import com.lsg.mingler.domain.order.entity.Order;
@@ -49,6 +50,9 @@ class PaymentTransactionServiceTest {
     private OrderItemRepository orderItemRepository;
 
     @Mock
+    private CartItemRepository cartItemRepository;
+
+    @Mock
     private PaymentRepository paymentRepository;
 
     @Mock
@@ -88,6 +92,7 @@ class PaymentTransactionServiceTest {
         assertThat(response.pgProvider()).isEqualTo("VIRTUAL");
         verify(paymentRepository).save(paymentCaptor.capture());
         assertThat(paymentCaptor.getValue().getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        verify(cartItemRepository).deleteAllByIdInBatch(List.of(100L));
         verify(productOptionRepository, never()).findAllByIdInForUpdate(any());
     }
 
@@ -189,6 +194,7 @@ class PaymentTransactionServiceTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         verify(paymentRepository, never()).save(any());
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(any());
     }
 
     @Test
@@ -226,6 +232,23 @@ class PaymentTransactionServiceTest {
         verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
         verify(productRepository, never()).findAllByIdInForUpdate(any());
         verify(paymentRepository, never()).save(any());
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(any());
+    }
+
+    @Test
+    void 원본_장바구니_정보가_없는_기존주문은_결제성공해도_장바구니를_삭제하지_않는다() {
+        Order order = memberOrder(500L, 7L, 20_000);
+        OrderItem item = orderItem(600L, 500L, 10L, null, 10_000, 2);
+        ReflectionTestUtils.setField(item, "sourceCartItemId", null);
+        Product product = product(10L, 5);
+        stubNewMemberPayment(order, item);
+        when(productRepository.findAllByIdInForUpdate(Set.of(10L))).thenReturn(List.of(product));
+        stubIdentifiers();
+
+        PaymentConfirmResponse response = paymentTransactionService.confirm(7L, null, command(20_000));
+
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(any());
     }
 
     @Test
@@ -345,6 +368,7 @@ class PaymentTransactionServiceTest {
             int quantity) {
         OrderItem item = OrderItem.builder()
                 .orderId(orderId)
+                .sourceCartItemId(100L)
                 .productId(productId)
                 .productOptionId(optionId)
                 .productName("상품")

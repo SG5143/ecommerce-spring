@@ -118,8 +118,10 @@ class OrderServiceTest {
         verify(orderItemRepository).saveAll(orderItemsCaptor.capture());
         assertThat(orderItemsCaptor.getValue())
                 .singleElement()
-                .extracting(OrderItem::getLineAmount)
-                .isEqualTo(20000);
+                .satisfies(item -> {
+                    assertThat(item.getLineAmount()).isEqualTo(20000);
+                    assertThat(item.getSourceCartItemId()).isEqualTo(100L);
+                });
         verify(cartItemRepository, never()).save(any());
     }
 
