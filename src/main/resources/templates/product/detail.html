@@ -48,7 +48,7 @@
             </div>
         </section>
 
-        <section class="detail-info" th:attr="data-product-id=${product.id},data-base-price=${product.finalPrice()},data-stock=${product.stockQuantity}">
+        <section class="detail-info" th:attr="data-product-id=${product.id},data-base-price=${product.finalPrice()}">
             <h1 class="detail-name" th:text="${product.name}">상품명</h1>
             <p class="detail-price">
                 <span class="price-original" th:if="${product.onSale()}"
@@ -73,7 +73,7 @@
 
             <ul id="selected-options" class="selected-options">
                 <li class="selected-option" th:unless="${product.hasOptions()}"
-                    th:attr="data-extra-price=0,data-stock=${product.stockQuantity}">
+                    th:attr="data-option-id=${product.defaultOptionId},data-extra-price=0,data-stock=${product.stockQuantity}">
                     <span class="selected-option-name" th:text="${product.name}">상품명</span>
                     <div class="selected-option-controls">
                         <div class="qty-stepper">

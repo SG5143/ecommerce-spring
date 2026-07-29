@@ -5,7 +5,7 @@ import java.util.List;
 /** 상품 상세 페이지 뷰 모델: 가격·이미지·옵션과 품절 여부 */
 public record ProductDetail(Long id, Long categoryId, String name, String description,
                             int price, Integer salePrice, int stockQuantity, boolean soldOut,
-                            List<String> imageUrls, List<Option> options) {
+                            List<String> imageUrls, List<Option> options, Long defaultOptionId) {
 
     /** 상품 옵션 한 줄: 추가금액과 옵션별 재고 */
     public record Option(Long id, String name, int extraPrice, int stockQuantity) {

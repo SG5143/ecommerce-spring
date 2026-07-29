@@ -11,8 +11,6 @@ import com.lsg.mingler.domain.payment.dto.PaymentConfirmResponse;
 import com.lsg.mingler.domain.payment.entity.Payment;
 import com.lsg.mingler.domain.payment.entity.PaymentStatus;
 import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
-import com.lsg.mingler.domain.product.dao.ProductRepository;
-import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
 import com.lsg.mingler.global.error.ConflictException;
 import com.lsg.mingler.global.error.ResourceNotFoundException;
@@ -39,7 +37,6 @@ public class PaymentTransactionService {
     private final OrderItemRepository orderItemRepository;
     private final CartItemRepository cartItemRepository;
     private final PaymentRepository paymentRepository;
-    private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
     private final PaymentIdentifierGenerator identifierGenerator;
     private final VirtualPaymentGateway virtualPaymentGateway;
@@ -126,7 +123,7 @@ public class PaymentTransactionService {
      * @param payment 같은 멱등성 키로 저장된 결제
      * @param command 현재 결제 승인 명령
      * @return 기존 승인 결과
-     * @throws DuplicateException 기존 결제와 현재 요청 내용이 다른 경우
+     * @throws ConflictException 동일한 결제 요청이 진행중임을 안내
      */
     private PaymentConfirmResponse replayExisting(Order order, Payment payment, PaymentService.PaymentConfirmCommand command) {
         PaymentRequestPolicy.validateSameRequest(order, payment, command);
@@ -179,18 +176,15 @@ public class PaymentTransactionService {
     }
 
     /**
-     * 주문 상품별 수량을 합산한 뒤 재고 행을 일정한 순서로 잠그고 차감한다.
-     * 일반 상품 재고와 옵션 재고는 각각 해당 엔티티에서 차감한다.
+     * 주문 상품별 옵션 수량을 합산한 뒤 옵션 재고 행을 일정한 순서로 잠그고 차감한다.
      *
      * @param orderItems 재고를 차감할 주문 상품 스냅샷
      */
     private void decreaseStocks(List<OrderItem> orderItems) {
-        TreeMap<Long, Integer> productQuantities = new TreeMap<>();
         TreeMap<Long, OptionQuantity> optionQuantities = new TreeMap<>();
         for (OrderItem item : orderItems) {
             if (item.getProductOptionId() == null) {
-                productQuantities.merge(item.getProductId(), item.getQuantity(), this::safeAddQuantity);
-                continue;
+                throw new ConflictException("주문 상품의 옵션 정보가 없습니다.");
             }
             optionQuantities.merge(
                     item.getProductOptionId(),
@@ -198,23 +192,8 @@ public class PaymentTransactionService {
                     this::mergeOptionQuantity);
         }
 
-        Map<Long, Product> products = productQuantities.isEmpty()
-                ? Map.of()
-                : toIdMap(productRepository.findAllByIdInForUpdate(productQuantities.keySet()), Product::getId);
-        Map<Long, ProductOption> options = optionQuantities.isEmpty()
-                ? Map.of()
-                : toIdMap(productOptionRepository.findAllByIdInForUpdate(optionQuantities.keySet()), ProductOption::getId);
-
-        for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
-            Product product = products.get(entry.getKey());
-            if (product == null) {
-                throw new ConflictException("상품 재고 정보를 찾을 수 없습니다.");
-            }
-            if (product.getStockQuantity() < entry.getValue()) {
-                throw new ConflictException("재고가 부족한 상품이 포함되어 있습니다.");
-            }
-            product.decreaseStock(entry.getValue());
-        }
+        Map<Long, ProductOption> options = toIdMap(
+                productOptionRepository.findAllByIdInForUpdate(optionQuantities.keySet()), ProductOption::getId);
         for (Map.Entry<Long, OptionQuantity> entry : optionQuantities.entrySet()) {
             ProductOption option = options.get(entry.getKey());
             OptionQuantity quantity = entry.getValue();

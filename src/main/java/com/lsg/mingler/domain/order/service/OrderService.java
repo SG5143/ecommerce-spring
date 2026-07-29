@@ -275,7 +275,7 @@ public class OrderService {
      * 장바구니에 담긴 당시 가격이 아닌 현재 판매 정보를 스냅샷 검증에 사용한다.
      *
      * @param cartItems 주문 대상 장바구니 항목 목록
-     * @return 스냅샷 생성에 필요한 상품·옵션·카테고리 맵과 옵션 보유 상품 ID 집합
+     * @return 스냅샷 생성에 필요한 상품·옵션·카테고리 맵
      */
     private SnapshotContext loadSnapshotContext(List<CartItem> cartItems) {
         Set<Long> productIds = cartItems.stream()
@@ -283,20 +283,20 @@ public class OrderService {
                 .collect(Collectors.toSet());
         Set<Long> optionIds = cartItems.stream()
                 .map(CartItem::getProductOptionId)
-                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+        if (optionIds.contains(null)) {
+            throw new ConflictException("상품 옵션 정보를 찾을 수 없습니다.");
+        }
 
         // 주문 항목별 개별 조회를 피하도록 상품·옵션·카테고리를 종류별로 한 번씩 조회한다.
         Map<Long, Product> products = toIdMap(productRepository.findAllById(productIds), Product::getId);
-        Map<Long, ProductOption> options = optionIds.isEmpty()
-                ? Map.of() : toIdMap(productOptionRepository.findAllById(optionIds), ProductOption::getId);
-        Set<Long> productIdsWithOptions = new LinkedHashSet<>(productOptionRepository.findProductIdsWithOptions(productIds));
+        Map<Long, ProductOption> options = toIdMap(productOptionRepository.findAllById(optionIds), ProductOption::getId);
         Set<Long> categoryIds = products.values().stream()
                 .map(Product::getCategoryId)
                 .collect(Collectors.toSet());
         Map<Long, Category> categories = toIdMap(categoryRepository.findAllById(categoryIds), Category::getId);
 
-        return new SnapshotContext(products, options, categories, productIdsWithOptions);
+        return new SnapshotContext(products, options, categories);
     }
 
     private ItemSnapshot createSnapshot(CartItem cartItem, SnapshotContext context) {
@@ -308,27 +308,22 @@ public class OrderService {
             throw new ConflictException("현재 판매 중이 아닌 상품이 포함되어 있습니다.");
         }
 
-        ProductOption option = null;
-        int stockQuantity = product.getStockQuantity();
-        // 할인가가 있으면 할인가를 기준으로 하고 선택 옵션의 추가금액을 더한다.
-        int unitPrice = product.getDisplayPrice();
-        if (cartItem.getProductOptionId() != null) {
-            option = context.options().get(cartItem.getProductOptionId());
-            if (option == null) {
-                throw new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다.");
-            }
-            if (!option.getProductId().equals(product.getId())) {
-                throw new IllegalArgumentException("상품에 속하지 않은 옵션이 포함되어 있습니다.");
-            }
-            if (!Boolean.TRUE.equals(option.getIsActive())) {
-                throw new ConflictException("현재 선택할 수 없는 상품 옵션이 포함되어 있습니다.");
-            }
-            stockQuantity = option.getStockQuantity();
-            unitPrice = safeAdd(unitPrice, option.getExtraPrice());
-        } else if (context.productIdsWithOptions().contains(product.getId())) {
-            // 장바구니에 담은 뒤 옵션 구성이 추가된 경우 잘못된 단일 상품 주문을 차단한다.
-            throw new ConflictException("상품 옵션을 다시 선택해주세요.");
+        if (cartItem.getProductOptionId() == null) {
+            throw new ConflictException("상품 옵션 정보를 찾을 수 없습니다.");
         }
+        ProductOption option = context.options().get(cartItem.getProductOptionId());
+        if (option == null) {
+            throw new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다.");
+        }
+        if (!option.getProductId().equals(product.getId())) {
+            throw new IllegalArgumentException("상품에 속하지 않은 옵션이 포함되어 있습니다.");
+        }
+        if (!Boolean.TRUE.equals(option.getIsActive())) {
+            throw new ConflictException("현재 선택할 수 없는 상품 옵션이 포함되어 있습니다.");
+        }
+        int stockQuantity = option.getStockQuantity();
+        int unitPrice = product.getDisplayPrice();
+        unitPrice = safeAdd(unitPrice, option.getExtraPrice());
 
         int quantity = cartItem.getQuantity();
         if (quantity < 1 || quantity > MAX_QUANTITY) {
@@ -346,11 +341,11 @@ public class OrderService {
         return new ItemSnapshot(
                 cartItem.getId(),
                 product.getId(),
-                option == null ? null : option.getId(),
+                option.getId(),
                 product.getName(),
                 category.getId(),
                 category.getName(),
-                option == null ? null : option.getName(),
+                Boolean.TRUE.equals(option.getIsDefault()) ? null : option.getName(),
                 product.getThumbnailUrl(),
                 unitPrice,
                 quantity,
@@ -466,8 +461,7 @@ public class OrderService {
     private record SnapshotContext(
             Map<Long, Product> products,
             Map<Long, ProductOption> options,
-            Map<Long, Category> categories,
-            Set<Long> productIdsWithOptions
+            Map<Long, Category> categories
     ) {}
 
     private record ItemSnapshot(

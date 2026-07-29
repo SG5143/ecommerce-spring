@@ -42,6 +42,9 @@ public class ProductOption {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
+    @Column(name = "is_default", nullable = false)
+    private Boolean isDefault;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -52,13 +55,14 @@ public class ProductOption {
 
     @Builder
     private ProductOption(Long productId, String name, Integer extraPrice,
-                          Integer stockQuantity, Integer displayOrder, Boolean isActive) {
+                          Integer stockQuantity, Integer displayOrder, Boolean isActive, Boolean isDefault) {
         this.productId = productId;
         this.name = name;
         this.extraPrice = extraPrice != null ? extraPrice : 0;
         this.stockQuantity = stockQuantity != null ? stockQuantity : 0;
         this.displayOrder = displayOrder != null ? displayOrder : 0;
         this.isActive = isActive == null || isActive;
+        this.isDefault = Boolean.TRUE.equals(isDefault);
     }
 
     public boolean isSoldOut() {
