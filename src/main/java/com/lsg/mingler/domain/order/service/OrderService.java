@@ -344,6 +344,7 @@ public class OrderService {
         }
         int lineAmount = safeMultiply(unitPrice, quantity);
         return new ItemSnapshot(
+                cartItem.getId(),
                 product.getId(),
                 option == null ? null : option.getId(),
                 product.getName(),
@@ -389,6 +390,7 @@ public class OrderService {
     private OrderItem toOrderItem(Long orderId, ItemSnapshot snapshot) {
         return OrderItem.builder()
                 .orderId(orderId)
+                .sourceCartItemId(snapshot.sourceCartItemId())
                 .productId(snapshot.productId())
                 .productOptionId(snapshot.optionId())
                 .productName(snapshot.productName())
@@ -469,6 +471,7 @@ public class OrderService {
     ) {}
 
     private record ItemSnapshot(
+            Long sourceCartItemId,
             Long productId,
             Long optionId,
             String productName,
