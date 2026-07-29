@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
     const state = window.checkoutState;
-    const pending = state.getPending();
+    let pending = state.getPending();
     const content = document.getElementById('payment-content');
     const message = document.getElementById('payment-message');
     const confirmButton = document.getElementById('payment-confirm');
@@ -116,7 +116,12 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(function (error) {
                 confirmButton.disabled = false;
-                confirmButton.textContent = '같은 요청으로 다시 결제하기';
+                if (error.status === 402 || error.status === 504) {
+                    pending = state.renewPaymentAttempt(pending);
+                    confirmButton.textContent = '새 요청으로 다시 결제하기';
+                } else {
+                    confirmButton.textContent = '같은 요청으로 다시 결제하기';
+                }
                 if (error.status === 404) {
                     state.clearPending();
                     state.clearSelection();

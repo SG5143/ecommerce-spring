@@ -91,6 +91,16 @@
         sessionStorage.removeItem(PENDING_KEY);
     }
 
+    function renewPaymentAttempt(pending) {
+        if (!pending || !pending.order || !pending.order.orderNumber) {
+            throw new Error('갱신할 결제 정보가 올바르지 않습니다.');
+        }
+        const next = Object.assign({}, pending, {
+            idempotencyKey: createIdempotencyKey()
+        });
+        return write(PENDING_KEY, next);
+    }
+
     function getComplete() {
         const state = read(COMPLETE_KEY);
         if (!state || !state.order || !state.payment
@@ -125,6 +135,7 @@
         getPending: getPending,
         setPending: setPending,
         clearPending: clearPending,
+        renewPaymentAttempt: renewPaymentAttempt,
         getComplete: getComplete,
         completePayment: completePayment,
         clearComplete: clearComplete
