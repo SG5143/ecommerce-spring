@@ -40,6 +40,7 @@ public class PaymentTransactionService {
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
     private final PaymentIdentifierGenerator identifierGenerator;
+    private final VirtualPaymentGateway virtualPaymentGateway;
 
     /**
      * 주문과 재고를 잠근 단일 트랜잭션에서 금액 검증, 재고 차감, 결제 승인을 완료한다.
@@ -66,6 +67,7 @@ public class PaymentTransactionService {
         List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdOrderByIdAsc(order.getId());
         validateSnapshotAmount(order, orderItems, command.amount());
         decreaseStocks(orderItems);
+        virtualPaymentGateway.approve(command.scenario());
 
         Payment payment = Payment.builder()
                 .paymentNumber(generatePaymentNumber())

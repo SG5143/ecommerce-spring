@@ -20,6 +20,7 @@ public class PaymentApiController {
 
     public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
     public static final String GUEST_ORDER_TOKEN_HEADER = "X-Guest-Order-Token";
+    public static final String VIRTUAL_PAYMENT_SCENARIO_HEADER = "X-Virtual-Payment-Scenario";
 
     private final PaymentService paymentService;
 
@@ -29,6 +30,7 @@ public class PaymentApiController {
      * @param memberId 인증된 회원 ID이며 비회원 요청에서는 비어 있을 수 있다
      * @param idempotencyKey 중복 결제 방지를 위한 멱등성 키
      * @param guestOrderToken 비회원 주문 소유권 확인용 원문 토큰
+     * @param virtualPaymentScenario 선택한 가상 결제 시나리오
      * @param request 승인할 주문번호, 금액, 결제수단
      * @return 승인된 결제와 주문 상태
      */
@@ -37,9 +39,15 @@ public class PaymentApiController {
             @AuthenticationPrincipal Long memberId,
             @RequestHeader(name = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey,
             @RequestHeader(name = GUEST_ORDER_TOKEN_HEADER, required = false) String guestOrderToken,
+            @RequestHeader(name = VIRTUAL_PAYMENT_SCENARIO_HEADER, required = false) String virtualPaymentScenario,
             @RequestBody PaymentConfirmRequest request) {
         String guestOrderTokenHash = memberId == null ? hash(guestOrderToken) : null;
-        return ResponseEntity.ok(paymentService.confirm(memberId, guestOrderTokenHash, idempotencyKey, request));
+        return ResponseEntity.ok(paymentService.confirm(
+                memberId,
+                guestOrderTokenHash,
+                idempotencyKey,
+                virtualPaymentScenario,
+                request));
     }
 
     /**
