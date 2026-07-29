@@ -1,5 +1,6 @@
 package com.lsg.mingler.domain.payment.service;
 
+import com.lsg.mingler.domain.cart.dao.CartItemRepository;
 import com.lsg.mingler.domain.order.dao.OrderItemRepository;
 import com.lsg.mingler.domain.order.dao.OrderRepository;
 import com.lsg.mingler.domain.order.entity.Order;
@@ -18,6 +19,7 @@ import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -35,6 +37,7 @@ public class PaymentTransactionService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final CartItemRepository cartItemRepository;
     private final PaymentRepository paymentRepository;
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
@@ -81,8 +84,24 @@ public class PaymentTransactionService {
         payment.changeStatus(PaymentStatus.SUCCESS);
         order.changeStatus(OrderStatus.PAID);
         paymentRepository.save(payment);
+        deleteOrderedCartItems(orderItems);
 
         return toResponse(order, payment);
+    }
+
+    /**
+     * 주문 생성 당시 연결한 장바구니 상품 행만 삭제한다.
+     * 기존 주문처럼 연결 정보가 없는 상품 스냅샷은 삭제 대상에서 제외한다.
+     */
+    private void deleteOrderedCartItems(List<OrderItem> orderItems) {
+        List<Long> sourceCartItemIds = orderItems.stream()
+                .map(OrderItem::getSourceCartItemId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (!sourceCartItemIds.isEmpty()) {
+            cartItemRepository.deleteAllByIdInBatch(sourceCartItemIds);
+        }
     }
 
     /**
