@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,18 +57,19 @@ class CartServiceTest {
     private CartService cartService;
 
     @Test
-    void 비회원도_옵션없는_상품을_장바구니에_담을_수_있다() {
+    void 비회원도_숨김_기본옵션_상품을_장바구니에_담을_수_있다() {
         Cart cart = guestCart(1L);
         Product product = product(10L, 12000, 5);
+        ProductOption option = defaultOption(20L, 10L, 5);
         AtomicReference<CartItem> savedItem = new AtomicReference<>();
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
         when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
-        when(productOptionRepository.existsByProductId(10L)).thenReturn(false);
-        when(productOptionRepository.findProductIdsWithOptions(Set.of(10L))).thenReturn(List.of());
+        when(productOptionRepository.findById(20L)).thenReturn(Optional.of(option));
+        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
         when(cartRepository.findByGuestTokenHashForUpdate("hash")).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L))
                 .thenAnswer(invocation -> savedItem.get() == null ? List.of() : List.of(savedItem.get()));
-        when(cartItemRepository.findVariant(1L, 10L, null)).thenReturn(Optional.empty());
+        when(cartItemRepository.findVariant(1L, 10L, 20L)).thenReturn(Optional.empty());
         when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> {
             CartItem item = invocation.getArgument(0);
             ReflectionTestUtils.setField(item, "id", 100L);
@@ -76,11 +78,21 @@ class CartServiceTest {
         });
 
         CartResponse response = cartService.addItems(null, "hash",
-                new CartItemsAddRequest(List.of(new CartItemsAddRequest.Item(10L, null, 2))));
+                new CartItemsAddRequest(List.of(new CartItemsAddRequest.Item(10L, 20L, 2))));
 
         assertThat(response.totalQuantity()).isEqualTo(2);
         assertThat(response.merchandiseTotal()).isEqualTo(24000);
         assertThat(savedItem.get().getUnitPriceAtAdded()).isEqualTo(12000);
+    }
+
+    @Test
+    void 옵션ID_없이_장바구니에_담을_수_없다() {
+        assertThatThrownBy(() -> cartService.addItems(7L, null,
+                new CartItemsAddRequest(List.of(new CartItemsAddRequest.Item(10L, null, 1)))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("상품 정보가 올바르지 않습니다");
+
+        verifyNoInteractions(productRepository, productOptionRepository, cartRepository);
     }
 
     @Test
@@ -91,10 +103,8 @@ class CartServiceTest {
         CartItem existing = cartItem(100L, 1L, 10L, 20L, 2, 11000);
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
         when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
-        when(productOptionRepository.existsByProductId(10L)).thenReturn(true);
         when(productOptionRepository.findById(20L)).thenReturn(Optional.of(option));
         when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
-        when(productOptionRepository.findProductIdsWithOptions(Set.of(10L))).thenReturn(List.of(10L));
         when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L)).thenReturn(List.of(existing));
         when(cartItemRepository.findVariant(1L, 10L, 20L)).thenReturn(Optional.of(existing));
@@ -113,7 +123,6 @@ class CartServiceTest {
         Product product = product(10L, 10000, 20);
         ProductOption otherProductOption = option(20L, 99L, 0, 10, true);
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-        when(productOptionRepository.existsByProductId(10L)).thenReturn(true);
         when(productOptionRepository.findById(20L)).thenReturn(Optional.of(otherProductOption));
 
         assertThatThrownBy(() -> cartService.addItems(7L, null,
@@ -127,11 +136,12 @@ class CartServiceTest {
     @Test
     void 현재_재고보다_많은_수량은_409를_반환한다() {
         Product product = product(10L, 10000, 2);
+        ProductOption option = defaultOption(20L, 10L, 2);
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-        when(productOptionRepository.existsByProductId(10L)).thenReturn(false);
+        when(productOptionRepository.findById(20L)).thenReturn(Optional.of(option));
 
         assertThatThrownBy(() -> cartService.addItems(7L, null,
-                new CartItemsAddRequest(List.of(new CartItemsAddRequest.Item(10L, null, 3)))))
+                new CartItemsAddRequest(List.of(new CartItemsAddRequest.Item(10L, 20L, 3)))))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("재고가 부족합니다");
     }
@@ -150,8 +160,8 @@ class CartServiceTest {
     @Test
     void 여러_장바구니_항목을_삭제할_때_소유권을_한_번에_조회한다() {
         Cart cart = memberCart(1L, 7L);
-        CartItem firstItem = cartItem(100L, 1L, 10L, null, 1, 10000);
-        CartItem secondItem = cartItem(101L, 1L, 11L, null, 1, 12000);
+        CartItem firstItem = cartItem(100L, 1L, 10L, 20L, 1, 10000);
+        CartItem secondItem = cartItem(101L, 1L, 11L, 21L, 1, 12000);
         when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdAndIdIn(1L, Set.of(100L, 101L)))
                 .thenReturn(List.of(firstItem, secondItem));
@@ -168,7 +178,7 @@ class CartServiceTest {
     @Test
     void 삭제_항목_중_현재_장바구니에_없는_항목이_있으면_삭제하지_않는다() {
         Cart cart = memberCart(1L, 7L);
-        CartItem ownedItem = cartItem(100L, 1L, 10L, null, 1, 10000);
+        CartItem ownedItem = cartItem(100L, 1L, 10L, 20L, 1, 10000);
         when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdAndIdIn(1L, Set.of(100L, 999L)))
                 .thenReturn(List.of(ownedItem));
@@ -183,7 +193,7 @@ class CartServiceTest {
     @Test
     void 중복된_삭제_항목_ID는_한_번만_검증하고_삭제한다() {
         Cart cart = memberCart(1L, 7L);
-        CartItem item = cartItem(100L, 1L, 10L, null, 1, 10000);
+        CartItem item = cartItem(100L, 1L, 10L, 20L, 1, 10000);
         when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdAndIdIn(1L, Set.of(100L))).thenReturn(List.of(item));
         when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L)).thenReturn(List.of());
@@ -209,10 +219,8 @@ class CartServiceTest {
         when(cartItemRepository.findVariant(2L, 10L, 20L)).thenReturn(Optional.of(memberItem));
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
         when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
-        when(productOptionRepository.existsByProductId(10L)).thenReturn(true);
         when(productOptionRepository.findById(20L)).thenReturn(Optional.of(option));
         when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
-        when(productOptionRepository.findProductIdsWithOptions(Set.of(10L))).thenReturn(List.of(10L));
         when(cartItemRepository.save(memberItem)).thenReturn(memberItem);
 
         CartMergeResponse response = cartService.mergeGuestCart(7L, "hash");
@@ -231,40 +239,36 @@ class CartServiceTest {
         ProductOption option = option(20L, 10L, 1000, 10, true);
         CartItem firstItem = cartItem(100L, 1L, 10L, 20L, 1, 11000);
         CartItem secondItem = cartItem(101L, 1L, 10L, 20L, 2, 11000);
-        CartItem optionlessItem = cartItem(102L, 1L, 11L, null, 1, 12000);
+        ProductOption defaultOption = defaultOption(21L, 11L, 0);
+        CartItem optionlessItem = cartItem(102L, 1L, 11L, 21L, 1, 12000);
         when(cartRepository.findByMemberId(7L)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L))
                 .thenReturn(List.of(firstItem, secondItem, optionlessItem));
         when(productRepository.findAllById(Set.of(10L, 11L)))
                 .thenReturn(List.of(firstProduct, secondProduct));
-        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
-        when(productOptionRepository.findProductIdsWithOptions(Set.of(10L, 11L)))
-                .thenReturn(List.of(10L, 11L));
+        when(productOptionRepository.findAllById(Set.of(20L, 21L))).thenReturn(List.of(option, defaultOption));
 
         CartResponse response = cartService.getCart(7L, null);
 
         assertThat(response.items()).hasSize(3);
-        assertThat(response.items().get(2).unavailableReason()).isEqualTo("상품 옵션을 다시 선택해주세요.");
+        assertThat(response.items().get(2).optionName()).isNull();
         verify(productRepository).findAllById(Set.of(10L, 11L));
-        verify(productOptionRepository).findAllById(Set.of(20L));
-        verify(productOptionRepository).findProductIdsWithOptions(Set.of(10L, 11L));
+        verify(productOptionRepository).findAllById(Set.of(20L, 21L));
         verify(productRepository, never()).findById(any());
         verify(productOptionRepository, never()).findById(any());
-        verify(productOptionRepository, never()).existsByProductId(any());
     }
 
     @Test
     void 일괄_조회에서_상품이나_선택_옵션이_없어도_기존_판매불가_사유를_유지한다() {
         Cart cart = memberCart(1L, 7L);
         Product product = product(10L, 10000, 10);
-        CartItem missingProductItem = cartItem(100L, 1L, 99L, null, 1, 10000);
+        CartItem missingProductItem = cartItem(100L, 1L, 99L, 998L, 1, 10000);
         CartItem missingOptionItem = cartItem(101L, 1L, 10L, 999L, 1, 10000);
         when(cartRepository.findByMemberId(7L)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L))
                 .thenReturn(List.of(missingProductItem, missingOptionItem));
         when(productRepository.findAllById(Set.of(99L, 10L))).thenReturn(List.of(product));
-        when(productOptionRepository.findAllById(Set.of(999L))).thenReturn(List.of());
-        when(productOptionRepository.findProductIdsWithOptions(Set.of(99L, 10L))).thenReturn(List.of(10L));
+        when(productOptionRepository.findAllById(Set.of(998L, 999L))).thenReturn(List.of());
 
         CartResponse response = cartService.getCart(7L, null);
 
@@ -356,12 +360,11 @@ class CartServiceTest {
         verify(cartExpirationService, never()).deleteExpiredGuestCart(any(), any());
     }
 
-    private Product product(Long id, int price, int stock) {
+    private Product product(Long id, int price, int ignoredStock) {
         Product product = Product.builder()
                 .categoryId(1L)
                 .name("테스트 상품")
                 .price(price)
-                .stockQuantity(stock)
                 .build();
         ReflectionTestUtils.setField(product, "id", id);
         return product;
@@ -376,6 +379,12 @@ class CartServiceTest {
                 .isActive(active)
                 .build();
         ReflectionTestUtils.setField(option, "id", id);
+        return option;
+    }
+
+    private ProductOption defaultOption(Long id, Long productId, int stock) {
+        ProductOption option = option(id, productId, 0, stock, true);
+        ReflectionTestUtils.setField(option, "isDefault", true);
         return option;
     }
 

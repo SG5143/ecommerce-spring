@@ -46,7 +46,6 @@ class ProductServiceTest {
                 .description("설명")
                 .price(price)
                 .salePrice(salePrice)
-                .stockQuantity(10)
                 .thumbnailUrl(thumbnailUrl)
                 .build();
     }
@@ -163,6 +162,31 @@ class ProductServiceTest {
         assertThat(detail.options().get(1).extraPrice()).isEqualTo(1000);
         assertThat(detail.options().get(1).soldOut()).isTrue();
         assertThat(detail.finalPrice()).isEqualTo(69000);
+        assertThat(detail.soldOut()).isFalse();
+    }
+
+    @Test
+    void 기본옵션은_상세의_선택목록에_노출하지_않고_수량선택용_ID만_전달한다() {
+        Product product = sampleProduct("무옵션 상품", 12000, null, "https://placehold.co/300x300?text=Basic");
+        ProductOption defaultOption = ProductOption.builder()
+                .productId(1L)
+                .name("기본 구성")
+                .stockQuantity(7)
+                .isDefault(true)
+                .build();
+        ReflectionTestUtils.setField(defaultOption, "id", 20L);
+        when(productRepository.increaseViewCount(1L, Product.STATUS_HIDDEN)).thenReturn(1);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productImageRepository.findAllByProductIdOrderByDisplayOrderAscIdAsc(1L)).thenReturn(List.of());
+        when(productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(1L))
+                .thenReturn(List.of(defaultOption));
+
+        ProductDetail detail = productService.getProductDetail(1L);
+
+        assertThat(detail.hasOptions()).isFalse();
+        assertThat(detail.options()).isEmpty();
+        assertThat(detail.defaultOptionId()).isEqualTo(20L);
+        assertThat(detail.stockQuantity()).isEqualTo(7);
         assertThat(detail.soldOut()).isFalse();
     }
 

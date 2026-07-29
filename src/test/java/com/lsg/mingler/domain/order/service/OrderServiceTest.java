@@ -128,10 +128,11 @@ class OrderServiceTest {
     @Test
     void 비회원_주문은_입력한_주문자와_새_조회토큰을_저장한다() {
         Cart cart = guestCart(1L, "cart-hash");
-        CartItem cartItem = cartItem(100L, 1L, 10L, null, 1);
+        CartItem cartItem = cartItem(100L, 1L, 10L, 20L, 1);
         Product product = product(10L, 30L, 12000, null, 3);
+        ProductOption option = option(20L, 10L, "기본 구성", 0, 3, true);
         Category category = category(30L, "상의");
-        stubSnapshotData(cartItem, product, null, category);
+        stubSnapshotData(cartItem, product, option, category);
         when(cartRepository.findByGuestTokenHashForUpdate("cart-hash")).thenReturn(Optional.of(cart));
         when(identifierGenerator.generateOrderNumber()).thenReturn("ORD-TEST");
         when(orderRepository.existsByOrderNumber("ORD-TEST")).thenReturn(false);
@@ -154,10 +155,11 @@ class OrderServiceTest {
     @Test
     void 비회원_주문의_입력문자열은_정규화해서_저장한다() {
         Cart cart = guestCart(1L, "cart-hash");
-        CartItem cartItem = cartItem(100L, 1L, 10L, null, 1);
+        CartItem cartItem = cartItem(100L, 1L, 10L, 20L, 1);
         Product product = product(10L, 30L, 12000, null, 3);
+        ProductOption option = option(20L, 10L, "기본 구성", 0, 3, true);
         Category category = category(30L, "상의");
-        stubSnapshotData(cartItem, product, null, category);
+        stubSnapshotData(cartItem, product, option, category);
         when(cartRepository.findByGuestTokenHashForUpdate("cart-hash")).thenReturn(Optional.of(cart));
         when(identifierGenerator.generateOrderNumber()).thenReturn("ORD-TEST");
         when(orderRepository.existsByOrderNumber("ORD-TEST")).thenReturn(false);
@@ -224,11 +226,12 @@ class OrderServiceTest {
     @Test
     void 현재_재고보다_주문수량이_많으면_409로_거부한다() {
         Cart cart = memberCart(1L, 7L);
-        CartItem cartItem = cartItem(100L, 1L, 10L, null, 4);
+        CartItem cartItem = cartItem(100L, 1L, 10L, 20L, 4);
         Member member = member(7L, "홍길동", "010-1111-2222", null);
         Product product = product(10L, 30L, 12000, null, 3);
+        ProductOption option = option(20L, 10L, "기본 구성", 0, 3, true);
         Category category = category(30L, "상의");
-        stubSnapshotData(cartItem, product, null, category);
+        stubSnapshotData(cartItem, product, option, category);
         when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
         when(memberRepository.findById(7L)).thenReturn(Optional.of(member));
 
@@ -240,13 +243,31 @@ class OrderServiceTest {
     }
 
     @Test
+    void 옵션ID가_없는_기존_장바구니항목은_주문으로_전환하지_않는다() {
+        Cart cart = memberCart(1L, 7L);
+        CartItem cartItem = cartItem(100L, 1L, 10L, null, 1);
+        Member member = member(7L, "홍길동", "010-1111-2222", null);
+        when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findAllByCartIdAndIdIn(1L, List.of(100L))).thenReturn(List.of(cartItem));
+        when(memberRepository.findById(7L)).thenReturn(Optional.of(member));
+
+        assertThatThrownBy(() -> orderService.createOrder(7L, null, request(null)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("옵션 정보");
+
+        verify(productRepository, never()).findAllById(any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
     void 항목_금액이_Integer_범위를_넘으면_저장전에_거부한다() {
         Cart cart = memberCart(1L, 7L);
-        CartItem cartItem = cartItem(100L, 1L, 10L, null, 2);
+        CartItem cartItem = cartItem(100L, 1L, 10L, 20L, 2);
         Member member = member(7L, "홍길동", "010-1111-2222", null);
         Product product = product(10L, 30L, Integer.MAX_VALUE, null, 2);
+        ProductOption option = option(20L, 10L, "기본 구성", 0, 2, true);
         Category category = category(30L, "상의");
-        stubSnapshotData(cartItem, product, null, category);
+        stubSnapshotData(cartItem, product, option, category);
         when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
         when(memberRepository.findById(7L)).thenReturn(Optional.of(member));
 
@@ -278,14 +299,7 @@ class OrderServiceTest {
         when(cartItemRepository.findAllByCartIdAndIdIn(1L, List.of(100L)))
                 .thenReturn(List.of(cartItem));
         when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
-        if (option == null) {
-            when(productOptionRepository.findProductIdsWithOptions(Set.of(10L)))
-                    .thenReturn(List.of());
-        } else {
-            when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
-            when(productOptionRepository.findProductIdsWithOptions(Set.of(10L)))
-                    .thenReturn(List.of(10L));
-        }
+        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
         when(categoryRepository.findAllById(Set.of(30L))).thenReturn(List.of(category));
     }
 
@@ -366,13 +380,12 @@ class OrderServiceTest {
             Long categoryId,
             Integer price,
             Integer salePrice,
-            Integer stockQuantity) {
+            Integer ignoredStockQuantity) {
         Product product = Product.builder()
                 .categoryId(categoryId)
                 .name("테스트 상품")
                 .price(price)
                 .salePrice(salePrice)
-                .stockQuantity(stockQuantity)
                 .thumbnailUrl("/image.jpg")
                 .build();
         ReflectionTestUtils.setField(product, "id", id);
