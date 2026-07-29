@@ -3,6 +3,8 @@ package com.lsg.mingler.global.error;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.http.MockHttpInputMessage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,6 +31,19 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("재고가 부족합니다."));
+    }
+
+    @Test
+    void 읽을수없는_요청본문은_400_응답으로_변환한다() {
+        HttpMessageNotReadableException exception =
+                new HttpMessageNotReadableException(
+                        "요청 본문 변환 실패",
+                        new MockHttpInputMessage(new byte[0]));
+
+        ResponseEntity<ErrorResponse> response = handler.handleHttpMessageNotReadable(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isEqualTo(new ErrorResponse("요청 본문이 올바르지 않습니다."));
     }
 
     @Test

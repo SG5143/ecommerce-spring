@@ -259,19 +259,45 @@ class PaymentTransactionServiceTest {
     }
 
     @Test
-    void 동일한_실패_결제요청은_재고차감없이_새키_재시도를_요청한다() {
+    void 동일한_승인거절_결제요청은_재고차감없이_기존실패를_재현한다() {
         Order order = memberOrder(500L, 7L, 20_000);
-        Payment payment = Payment.builder()
-                .paymentNumber("PAY-FAILED-1")
-                .orderId(500L)
-                .memberId(7L)
-                .idempotencyKey("key-1")
-                .pgProvider("VIRTUAL")
-                .paymentMethod("CARD")
-                .amount(20_000)
-                .build();
-        payment.recordFailure("VIRTUAL_DECLINED", "승인 거절");
-        payment.changeStatus(PaymentStatus.FAILED);
+        Payment payment = failedPayment(PaymentDeclinedException.FAILURE_CODE);
+        when(orderRepository.findByOrderNumberForUpdate("ORD-1")).thenReturn(Optional.of(order));
+        when(paymentRepository.findByMemberIdAndIdempotencyKey(7L, "key-1"))
+                .thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentTransactionService.confirm(
+                7L, null, command(20_000)))
+                .isInstanceOf(PaymentDeclinedException.class);
+
+        verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
+        verify(productOptionRepository, never()).findAllByIdInForUpdate(any());
+        verify(paymentRepository, never()).save(any());
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(any());
+    }
+
+    @Test
+    void 동일한_승인지연_결제요청은_재고차감없이_기존실패를_재현한다() {
+        Order order = memberOrder(500L, 7L, 20_000);
+        Payment payment = failedPayment(PaymentApprovalTimeoutException.FAILURE_CODE);
+        when(orderRepository.findByOrderNumberForUpdate("ORD-1")).thenReturn(Optional.of(order));
+        when(paymentRepository.findByMemberIdAndIdempotencyKey(7L, "key-1"))
+                .thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentTransactionService.confirm(
+                7L, null, command(20_000)))
+                .isInstanceOf(PaymentApprovalTimeoutException.class);
+
+        verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
+        verify(productOptionRepository, never()).findAllByIdInForUpdate(any());
+        verify(paymentRepository, never()).save(any());
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(any());
+    }
+
+    @Test
+    void 알수없는_실패코드의_결제요청은_충돌로_처리한다() {
+        Order order = memberOrder(500L, 7L, 20_000);
+        Payment payment = failedPayment("UNKNOWN_FAILURE");
         when(orderRepository.findByOrderNumberForUpdate("ORD-1")).thenReturn(Optional.of(order));
         when(paymentRepository.findByMemberIdAndIdempotencyKey(7L, "key-1"))
                 .thenReturn(Optional.of(payment));
@@ -279,10 +305,12 @@ class PaymentTransactionServiceTest {
         assertThatThrownBy(() -> paymentTransactionService.confirm(
                 7L, null, command(20_000)))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("완료되지 않았습니다");
+                .hasMessageContaining("실패 결과를 확인할 수 없습니다");
 
         verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
         verify(productOptionRepository, never()).findAllByIdInForUpdate(any());
+        verify(paymentRepository, never()).save(any());
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(any());
     }
 
     @Test
@@ -412,6 +440,21 @@ class PaymentTransactionServiceTest {
         ReflectionTestUtils.setField(payment, "id", id);
         payment.recordTransactionKey("VPG-1");
         payment.changeStatus(PaymentStatus.SUCCESS);
+        return payment;
+    }
+
+    private Payment failedPayment(String failureCode) {
+        Payment payment = Payment.builder()
+                .paymentNumber("PAY-FAILED-1")
+                .orderId(500L)
+                .memberId(7L)
+                .idempotencyKey("key-1")
+                .pgProvider("VIRTUAL")
+                .paymentMethod("CARD")
+                .amount(20_000)
+                .build();
+        payment.recordFailure(failureCode, "결제 실패");
+        payment.changeStatus(PaymentStatus.FAILED);
         return payment;
     }
 }

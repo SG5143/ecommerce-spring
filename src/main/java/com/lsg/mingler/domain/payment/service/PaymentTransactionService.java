@@ -13,6 +13,8 @@ import com.lsg.mingler.domain.payment.entity.PaymentStatus;
 import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
 import com.lsg.mingler.domain.product.entity.ProductOption;
 import com.lsg.mingler.global.error.ConflictException;
+import com.lsg.mingler.global.error.PaymentApprovalTimeoutException;
+import com.lsg.mingler.global.error.PaymentDeclinedException;
 import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.util.HashMap;
 import java.util.List;
@@ -117,20 +119,41 @@ public class PaymentTransactionService {
     }
 
     /**
-     * 기존 결제가 현재 요청과 동일하고 승인 완료 상태이면 저장된 결과를 재응답한다.
+     * 기존 결제가 현재 요청과 동일하면 저장된 성공 또는 실패 결과를 재현한다.
      *
      * @param order 결제 대상 주문
      * @param payment 같은 멱등성 키로 저장된 결제
      * @param command 현재 결제 승인 명령
      * @return 기존 승인 결과
-     * @throws ConflictException 동일한 결제 요청이 진행중임을 안내
+     * @throws PaymentDeclinedException 저장된 승인 거절 결과를 재현
+     * @throws PaymentApprovalTimeoutException 저장된 승인 지연 결과를 재현
+     * @throws ConflictException 처리 중이거나 알 수 없는 실패 결과인 경우
      */
     private PaymentConfirmResponse replayExisting(Order order, Payment payment, PaymentService.PaymentConfirmCommand command) {
         PaymentRequestPolicy.validateSameRequest(order, payment, command);
-        if (payment.getStatus() != PaymentStatus.SUCCESS) {
-            throw new ConflictException("동일한 결제 요청이 처리 중이거나 완료되지 않았습니다.");
+        if (payment.getStatus() == PaymentStatus.SUCCESS) {
+            return PaymentConfirmResponseMapper.from(order, payment);
         }
-        return PaymentConfirmResponseMapper.from(order, payment);
+        if (payment.getStatus() == PaymentStatus.FAILED) {
+            replayRecordedFailure(payment);
+        }
+        throw new ConflictException("동일한 결제 요청이 처리 중이거나 완료되지 않았습니다.");
+    }
+
+    /**
+     * 저장된 실패 코드를 최초 승인 요청과 같은 예외로 복원한다.
+     * 알 수 없는 코드는 잘못된 HTTP 의미로 재현하지 않고 충돌로 처리한다.
+     *
+     * @param payment 실패 결과가 저장된 결제
+     */
+    private void replayRecordedFailure(Payment payment) {
+        if (PaymentDeclinedException.FAILURE_CODE.equals(payment.getFailureCode())) {
+            throw new PaymentDeclinedException();
+        }
+        if (PaymentApprovalTimeoutException.FAILURE_CODE.equals(payment.getFailureCode())) {
+            throw new PaymentApprovalTimeoutException();
+        }
+        throw new ConflictException("동일한 결제 요청의 실패 결과를 확인할 수 없습니다.");
     }
 
     /**
