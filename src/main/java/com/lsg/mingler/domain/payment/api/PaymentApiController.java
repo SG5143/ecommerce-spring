@@ -43,7 +43,7 @@ public class PaymentApiController {
      * @param memberId 인증된 회원 ID이며 비회원 요청에서는 비어 있을 수 있다
      * @param idempotencyKey 결제 준비 요청의 중복 처리를 막기 위한 멱등성 키
      * @param guestOrderToken 비회원 주문 소유권 확인용 원문 토큰
-     * @param request 준비할 주문번호와 결제수단
+     * @param request 준비할 주문번호, 결제수단과 결제 제공자
      * @return 결제창 호출에 필요한 주문번호, 금액, 클라이언트 키 등의 준비 결과
      */
     @PostMapping("/prepare")

@@ -61,10 +61,6 @@ public class PaymentFlowService {
             throw new IllegalArgumentException("결제금액은 0원보다 커야 합니다.");
         }
 
-        VirtualPaymentScenario scenario = "VIRTUAL".equals(gatewayResolver.currentProvider())
-                ? VirtualPaymentScenario.from(rawVirtualScenario)
-                : VirtualPaymentScenario.SUCCESS;
-
         PaymentProcessingContext context = processingTransactionService.start(
                 memberId,
                 guestOrderTokenHash,
@@ -72,7 +68,7 @@ public class PaymentFlowService {
                 paymentKey,
                 pgOrderId,
                 request.amount(),
-                scenario);
+                rawVirtualScenario);
 
         if (!context.requiresGatewayCall()) {
             if (context.response().paymentStatus() == PaymentStatus.PROCESSING) {

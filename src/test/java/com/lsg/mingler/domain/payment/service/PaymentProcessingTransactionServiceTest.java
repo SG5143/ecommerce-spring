@@ -48,7 +48,7 @@ class PaymentProcessingTransactionServiceTest {
 
         PaymentProcessingContext context = service.start(
                 7L, null, "key-1", "payment-key", "TOSS-order", 20_000,
-                VirtualPaymentScenario.SUCCESS);
+                null);
 
         assertThat(context.requiresGatewayCall()).isTrue();
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PROCESSING);
@@ -68,10 +68,28 @@ class PaymentProcessingTransactionServiceTest {
 
         PaymentProcessingContext context = service.start(
                 7L, null, "key-1", "payment-key", "TOSS-order", 20_000,
-                VirtualPaymentScenario.SUCCESS);
+                null);
 
         assertThat(context.requiresGatewayCall()).isFalse();
         verify(inventoryService, never()).reserve(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void 가상결제는_저장된_제공자를_기준으로_시나리오를_해석한다() {
+        Payment payment = preparedPayment("VIRTUAL", "VIRTUAL-order");
+        Order order = order();
+        List<OrderItem> items = List.of(orderItem());
+        when(paymentRepository.findByPgOrderId("VIRTUAL-order")).thenReturn(Optional.of(payment));
+        when(orderRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByPgOrderIdForUpdate("VIRTUAL-order")).thenReturn(Optional.of(payment));
+        when(orderItemRepository.findAllByOrderIdOrderByIdAsc(500L)).thenReturn(items);
+
+        PaymentProcessingContext context = service.start(
+                7L, null, "key-1", "payment-key", "VIRTUAL-order", 20_000,
+                null);
+
+        assertThat(context.provider()).isEqualTo("VIRTUAL");
+        assertThat(context.gatewayCommand().virtualScenario()).isEqualTo(VirtualPaymentScenario.SUCCESS);
     }
 
     private void stubLocked(Payment payment, Order order, List<OrderItem> items) {
@@ -82,16 +100,20 @@ class PaymentProcessingTransactionServiceTest {
     }
 
     private Payment preparedPayment() {
+        return preparedPayment("TOSS", "TOSS-order");
+    }
+
+    private Payment preparedPayment(String provider, String pgOrderId) {
         Payment payment = Payment.builder()
                 .paymentNumber("PAY-1")
                 .orderId(500L)
                 .memberId(7L)
                 .idempotencyKey("key-1")
-                .pgProvider("TOSS")
+                .pgProvider(provider)
                 .paymentMethod("CARD")
                 .amount(20_000)
                 .build();
-        payment.recordPreparation("TOSS-order");
+        payment.recordPreparation(pgOrderId);
         return payment;
     }
 

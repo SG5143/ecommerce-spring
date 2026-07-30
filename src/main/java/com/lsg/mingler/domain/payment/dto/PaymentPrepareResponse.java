@@ -9,6 +9,7 @@ package com.lsg.mingler.domain.payment.dto;
  * @param amount 서버의 주문 스냅샷으로 계산한 결제 금액
  * @param currency 결제 통화
  * @param customerKey 결제 시도별 비추측성 고객 식별자
+ * @param paymentProvider 서버가 확정해 결제 시도에 저장한 결제 제공자
  */
 public record PaymentPrepareResponse(
         String clientKey,
@@ -16,6 +17,7 @@ public record PaymentPrepareResponse(
         String orderName,
         Integer amount,
         String currency,
-        String customerKey
+        String customerKey,
+        String paymentProvider
 ) {
 }

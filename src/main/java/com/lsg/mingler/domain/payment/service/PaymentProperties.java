@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * {@code payment.*} 설정을 결제 제공자, 토스 HTTP 통신, 자동 재조정 정책으로 바인딩
  *
- * @param provider 사용할 결제 제공자
+ * @param provider 요청에 결제 제공자가 없을 때 사용할 호환 기본 제공자
  * @param toss 토스 API 키와 HTTP 설정
  * @param reconciliation 결제 재조정 정책
  */

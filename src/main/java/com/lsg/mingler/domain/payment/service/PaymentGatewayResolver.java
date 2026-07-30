@@ -1,6 +1,7 @@
 package com.lsg.mingler.domain.payment.service;
 
 import jakarta.annotation.PostConstruct;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -29,7 +30,7 @@ public class PaymentGatewayResolver {
     }
 
     /**
-     * 선택된 제공자 구현의 존재 여부와 토스 클라이언트·시크릿 키 종류의 일치 여부를 검증한다.
+     * 선택된 제공자 구현의 존재 여부와 토스 테스트 키 구성을 검증한다.
      */
     @PostConstruct
     void validateConfiguration() {
@@ -39,24 +40,32 @@ public class PaymentGatewayResolver {
             throw new IllegalStateException("지원하지 않는 결제 제공사입니다: " + properties.provider());
         }
 
-        if (!"TOSS".equals(provider)) {
-            return;
+        if ("TOSS".equals(provider) && !hasValidTossTestCredentials()) {
+            throw new IllegalStateException(
+                    "Toss 테스트 결제에는 test_ck_ 클라이언트 키와 test_sk_ 시크릿 키가 모두 필요합니다.");
+        }
+    }
+
+    /**
+     * 요청값을 지원되는 제공자 코드로 정규화하고 현재 설정에서 사용할 수 있는지 검증한다.
+     * 요청값이 없으면 기존 {@code payment.provider} 설정을 호환 기본값으로 사용한다.
+     *
+     * @param requestedProvider 클라이언트가 선택한 제공자
+     * @return 검증된 대문자 제공자 코드
+     */
+    public String resolveAvailableProvider(String requestedProvider) {
+        String provider = requestedProvider == null || requestedProvider.isBlank()
+                ? currentProvider()
+                : requestedProvider.trim().toUpperCase(Locale.ROOT);
+
+        if (!gateways.containsKey(provider)) {
+            throw new IllegalArgumentException("지원하지 않는 결제 제공사입니다: " + requestedProvider);
         }
 
-        String clientKey = properties.toss().clientKey();
-        String secretKey = properties.toss().secretKey();
-        if (clientKey == null || clientKey.isBlank() || secretKey == null || secretKey.isBlank()) {
-            throw new IllegalStateException("Toss 결제에는 클라이언트 키와 시크릿 키가 모두 필요합니다.");
+        if (!isAvailable(provider)) {
+            throw new IllegalArgumentException("현재 사용할 수 없는 결제 제공사입니다: " + provider);
         }
-
-        boolean clientTest = clientKey.startsWith("test_");
-        boolean secretTest = secretKey.startsWith("test_");
-        boolean clientLive = clientKey.startsWith("live_");
-        boolean secretLive = secretKey.startsWith("live_");
-
-        if ((!clientTest && !clientLive) || (!secretTest && !secretLive) || clientTest != secretTest) {
-            throw new IllegalStateException("Toss 클라이언트 키와 시크릿 키의 테스트·라이브 종류가 일치해야 합니다.");
-        }
+        return provider;
     }
 
     /**
@@ -88,15 +97,48 @@ public class PaymentGatewayResolver {
      * @return 정규화된 현재 제공자 코드
      */
     public String currentProvider() {
-        return properties.provider().toUpperCase(java.util.Locale.ROOT);
+        return properties.provider().toUpperCase(Locale.ROOT);
     }
 
     /**
-     * 토스 결제창 초기화에 사용할 클라이언트 키를 반환한다.
+     * 제공자가 현재 새 결제에 사용 가능한지 확인한다.
      *
-     * @return 토스 모드이면 클라이언트 키, 다른 제공자이면 {@code null}
+     * @param provider 확인할 제공자 코드
+     * @return 구현체가 존재하고 필요한 설정이 유효하면 {@code true}
      */
-    public String clientKey() {
-        return "TOSS".equals(currentProvider()) ? properties.toss().clientKey() : null;
+    public boolean isAvailable(String provider) {
+        if (provider == null || provider.isBlank()) {
+            return false;
+        }
+        String normalized = provider.trim().toUpperCase(Locale.ROOT);
+        return gateways.containsKey(normalized)
+                && (!"TOSS".equals(normalized) || hasValidTossTestCredentials());
+    }
+
+    /**
+     * 지정한 제공자의 브라우저 SDK용 클라이언트 키를 반환한다.
+     *
+     * @param provider 결제 시도에 저장된 제공자 코드
+     * @return Toss이면 클라이언트 키, 가상 결제이면 {@code null}
+     */
+    public String clientKey(String provider) {
+        return "TOSS".equals(provider) ? properties.toss().clientKey() : null;
+    }
+
+    private boolean hasValidTossTestCredentials() {
+        String clientKey = properties.toss().clientKey();
+        String secretKey = properties.toss().secretKey();
+        if (clientKey == null || clientKey.isBlank() || secretKey == null || secretKey.isBlank()) {
+            return false;
+        }
+
+        boolean clientTest = clientKey.startsWith("test_ck_");
+        boolean secretTest = secretKey.startsWith("test_sk_");
+
+        // 라이브 결제를 도입할 때 UI 안내와 운영 안전장치를 함께 검토한 뒤 아래 검증을 활성화한다.
+        // boolean clientLive = clientKey.startsWith("live_ck_");
+        // boolean secretLive = secretKey.startsWith("live_sk_");
+        // return (clientTest && secretTest) || (clientLive && secretLive);
+        return clientTest && secretTest;
     }
 }

@@ -39,7 +39,7 @@ class PaymentProcessingTransactionService {
      * @param paymentKey PG 인증 성공 후 발급된 결제 키
      * @param pgOrderId 결제 준비 시 발급한 PG 주문번호
      * @param amount 클라이언트 콜백에 포함된 승인 금액
-     * @param scenario 가상 결제에서 재현할 시나리오
+     * @param rawVirtualScenario 가상 결제에서 재현할 시나리오 원문
      * @return 현재 상태와 외부 PG 호출 필요 여부를 포함한 처리 문맥
      */
     @Transactional
@@ -50,7 +50,7 @@ class PaymentProcessingTransactionService {
             String paymentKey,
             String pgOrderId,
             Integer amount,
-            VirtualPaymentScenario scenario) {
+            String rawVirtualScenario) {
         Payment initial = paymentRepository.findByPgOrderId(pgOrderId).orElseThrow(()
                 -> new ResourceNotFoundException("결제 준비 정보를 찾을 수 없습니다."));
         Order order = orderRepository.findByIdForUpdate(initial.getOrderId()).orElseThrow(()
@@ -84,6 +84,9 @@ class PaymentProcessingTransactionService {
             throw new ConflictException("결제할 수 있는 주문 상태가 아닙니다.");
         }
 
+        VirtualPaymentScenario scenario = "VIRTUAL".equals(payment.getPgProvider())
+                ? VirtualPaymentScenario.from(rawVirtualScenario)
+                : VirtualPaymentScenario.SUCCESS;
         List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdOrderByIdAsc(order.getId());
         PaymentSnapshotValidator.validate(order, orderItems);
         payment.recordPaymentKey(paymentKey);

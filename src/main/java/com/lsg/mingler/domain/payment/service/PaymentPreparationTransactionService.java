@@ -45,18 +45,25 @@ class PaymentPreparationTransactionService {
      * @param guestOrderTokenHash 비회원 주문 토큰 해시
      * @param orderNumber 결제할 Mingler 주문번호
      * @param paymentMethod 검증된 결제수단
+     * @param paymentProvider 검증된 결제 제공자
      * @param idempotencyKey 결제 준비 멱등성 키
      * @return 결제창 호출에 필요한 준비 결과
      */
     @Transactional
-    PaymentPrepareResponse prepare(Long memberId, String guestOrderTokenHash, String orderNumber, String paymentMethod, String idempotencyKey) {
+    PaymentPrepareResponse prepare(
+            Long memberId,
+            String guestOrderTokenHash,
+            String orderNumber,
+            String paymentMethod,
+            String paymentProvider,
+            String idempotencyKey) {
         Order order = orderRepository.findByOrderNumberForUpdate(orderNumber).orElseThrow(()
                 -> new ResourceNotFoundException("주문을 찾을 수 없습니다."));
         PaymentOrderOwnershipPolicy.validate(order, memberId, guestOrderTokenHash);
 
         Optional<Payment> existing = findExisting(order.getId(), memberId, idempotencyKey);
         if (existing.isPresent()) {
-            validateSamePreparation(order, existing.get(), paymentMethod);
+            validateSamePreparation(order, existing.get(), paymentMethod, paymentProvider);
             return toResponse(order, existing.get(), orderItems(order));
         }
 
@@ -76,18 +83,17 @@ class PaymentPreparationTransactionService {
 
         List<OrderItem> orderItems = orderItems(order);
         PaymentSnapshotValidator.validate(order, orderItems);
-        String provider = gatewayResolver.currentProvider();
         Payment payment = Payment.builder()
                 .paymentNumber(generatePaymentNumber())
                 .orderId(order.getId())
                 .memberId(memberId)
                 .idempotencyKey(idempotencyKey)
-                .pgProvider(provider)
+                .pgProvider(paymentProvider)
                 .paymentMethod(paymentMethod)
                 .amount(order.getTotalAmount())
                 .build();
 
-        payment.recordPreparation(generatePgOrderId(provider));
+        payment.recordPreparation(generatePgOrderId(paymentProvider));
         paymentRepository.saveAndFlush(payment);
 
         return toResponse(order, payment, orderItems);
@@ -100,11 +106,15 @@ class PaymentPreparationTransactionService {
         return paymentRepository.findByOrderIdAndIdempotencyKey(orderId, idempotencyKey);
     }
 
-    private void validateSamePreparation(Order order, Payment payment, String paymentMethod) {
+    private void validateSamePreparation(
+            Order order,
+            Payment payment,
+            String paymentMethod,
+            String paymentProvider) {
         boolean same = order.getId().equals(payment.getOrderId())
                 && order.getTotalAmount().equals(payment.getAmount())
                 && paymentMethod.equals(payment.getPaymentMethod())
-                && gatewayResolver.currentProvider().equals(payment.getPgProvider())
+                && paymentProvider.equals(payment.getPgProvider())
                 && payment.getPgOrderId() != null;
         if (!same) {
             throw new DuplicateException("동일한 멱등성 키의 결제 준비 정보가 이전 요청과 다릅니다.");
@@ -124,12 +134,13 @@ class PaymentPreparationTransactionService {
 
     private PaymentPrepareResponse toResponse(Order order, Payment payment, List<OrderItem> orderItems) {
         return new PaymentPrepareResponse(
-                gatewayResolver.clientKey(),
+                gatewayResolver.clientKey(payment.getPgProvider()),
                 payment.getPgOrderId(),
                 createOrderName(orderItems),
                 order.getTotalAmount(),
                 "KRW",
-                identifierGenerator.customerKeyFrom(payment.getPgOrderId()));
+                identifierGenerator.customerKeyFrom(payment.getPgOrderId()),
+                payment.getPgProvider());
     }
 
     private String createOrderName(List<OrderItem> orderItems) {

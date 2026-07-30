@@ -87,7 +87,7 @@ class PaymentApiControllerTest {
     void 비회원_결제준비는_주문토큰을_해시로_변환한다() {
         PaymentPrepareRequest request = new PaymentPrepareRequest("ORD-1", "CARD");
         PaymentPrepareResponse response = new PaymentPrepareResponse(
-                null, "VIRTUAL-order", "상품", 10_000, "KRW", "customer-key");
+                null, "VIRTUAL-order", "상품", 10_000, "KRW", "customer-key", "VIRTUAL");
         when(preparationService.prepare(
                 null,
                 HashUtils.sha256Hex("guest-token"),

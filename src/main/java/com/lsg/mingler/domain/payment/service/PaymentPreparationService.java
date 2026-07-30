@@ -20,6 +20,7 @@ public class PaymentPreparationService {
     private static final String SUPPORTED_METHOD = "CARD";
 
     private final PaymentPreparationTransactionService transactionService;
+    private final PaymentGatewayResolver gatewayResolver;
 
     /**
      * CARD 결제 준비 요청을 검증하고 멱등한 준비 결과를 생성한다.
@@ -53,10 +54,11 @@ public class PaymentPreparationService {
         if (!SUPPORTED_METHOD.equals(method)) {
             throw new IllegalArgumentException("현재 CARD 결제수단만 지원합니다.");
         }
+        String provider = gatewayResolver.resolveAvailableProvider(request.paymentProvider());
 
         try {
             return transactionService.prepare(
-                    memberId, guestOrderTokenHash, orderNumber, method, normalizedKey);
+                    memberId, guestOrderTokenHash, orderNumber, method, provider, normalizedKey);
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateException("이미 처리된 결제 준비 요청입니다.");
         }
