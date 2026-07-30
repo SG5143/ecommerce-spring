@@ -36,4 +36,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.orderNumber = :orderNumber")
     Optional<Order> findByOrderNumberForUpdate(@Param("orderNumber") String orderNumber);
+
+    /**
+     * 결제 상태 전이와 재고 처리 중 동일 주문의 동시 변경을 막기 위해 식별자로 주문을 조회하고
+     * 비관적 쓰기 잠금을 획득한다. 잠금은 호출한 트랜잭션이 종료될 때까지 유지된다.
+     *
+     * @param orderId 조회할 주문 식별자
+     * @return 주문이 존재하면 잠금이 적용된 주문, 존재하지 않으면 빈 값
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :orderId")
+    Optional<Order> findByIdForUpdate(@Param("orderId") Long orderId);
 }

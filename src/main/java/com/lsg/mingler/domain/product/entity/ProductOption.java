@@ -85,4 +85,18 @@ public class ProductOption {
         }
         this.stockQuantity -= quantity;
     }
+
+    /**
+     * 결제 승인 실패 또는 취소 시 예약했던 주문 수량을 현재 재고에 복구한다.
+     *
+     * @param quantity 복구할 수량
+     * @throws IllegalArgumentException 복구 수량이 0 이하인 경우
+     * @throws ArithmeticException 복구 결과가 {@link Integer}의 최댓값을 초과하는 경우
+     */
+    public void increaseStock(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("복구 수량은 0보다 커야 합니다.");
+        }
+        this.stockQuantity = Math.addExact(this.stockQuantity, quantity);
+    }
 }

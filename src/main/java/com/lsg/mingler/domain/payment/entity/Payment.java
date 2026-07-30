@@ -45,6 +45,12 @@ public class Payment {
     @Column(name = "pg_provider", nullable = false, length = 30)
     private String pgProvider;
 
+    @Column(name = "pg_order_id", unique = true, length = 64)
+    private String pgOrderId;
+
+    @Column(name = "pg_payment_key", unique = true, length = 200)
+    private String pgPaymentKey;
+
     @Column(name = "payment_method", nullable = false, length = 30)
     private String paymentMethod;
 
@@ -57,6 +63,9 @@ public class Payment {
 
     @Column(name = "pg_transaction_key", unique = true, length = 100)
     private String pgTransactionKey;
+
+    @Column(name = "processing_at")
+    private LocalDateTime processingAt;
 
     @Column(name = "failure_code", length = 50)
     private String failureCode;
@@ -108,9 +117,29 @@ public class Payment {
         this.pgTransactionKey = pgTransactionKey;
     }
 
+    public void recordPreparation(String pgOrderId) {
+        if (pgOrderId == null || pgOrderId.isBlank()) {
+            throw new IllegalArgumentException("PG 주문번호가 필요합니다.");
+        }
+        if (this.pgOrderId != null && !this.pgOrderId.equals(pgOrderId)) {
+            throw new IllegalStateException("이미 다른 PG 주문번호가 기록되어 있습니다.");
+        }
+        this.pgOrderId = pgOrderId;
+    }
+
+    public void recordPaymentKey(String pgPaymentKey) {
+        if (pgPaymentKey == null || pgPaymentKey.isBlank()) {
+            throw new IllegalArgumentException("PG 결제키가 필요합니다.");
+        }
+        if (this.pgPaymentKey != null && !this.pgPaymentKey.equals(pgPaymentKey)) {
+            throw new IllegalStateException("이미 다른 PG 결제키가 기록되어 있습니다.");
+        }
+        this.pgPaymentKey = pgPaymentKey;
+    }
+
     public void recordFailure(String failureCode, String failureReason) {
-        this.failureCode = failureCode;
-        this.failureReason = failureReason;
+        this.failureCode = truncate(failureCode, 50);
+        this.failureReason = truncate(failureReason, 500);
     }
 
     public void changeStatus(PaymentStatus nextStatus) {
@@ -119,6 +148,7 @@ public class Payment {
 
         LocalDateTime now = LocalDateTime.now();
         switch (nextStatus) {   // 상태가 바뀐 시각을 now 로 기록
+            case PROCESSING -> this.processingAt = now;
             case SUCCESS -> this.approvedAt = now;
             case FAILED -> this.failedAt = now;
             case CANCELLED -> this.cancelledAt = now;
@@ -128,5 +158,36 @@ public class Payment {
             case PENDING -> {
             }
         }
+    }
+
+    public void markSuccess(String transactionKey, LocalDateTime providerApprovedAt) {
+        changeStatus(PaymentStatus.SUCCESS);
+        this.pgTransactionKey = transactionKey;
+        if (providerApprovedAt != null) {
+            this.approvedAt = providerApprovedAt;
+        }
+        this.failureCode = null;
+        this.failureReason = null;
+    }
+
+    public void markFailed(String failureCode, String failureReason) {
+        recordFailure(failureCode, failureReason);
+        changeStatus(PaymentStatus.FAILED);
+    }
+
+    public void markCancelled(String failureCode, String failureReason) {
+        recordFailure(failureCode, failureReason);
+        changeStatus(PaymentStatus.CANCELLED);
+    }
+
+    public void markManualReview(String reason) {
+        recordFailure("MANUAL_REVIEW_REQUIRED", reason);
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 }
