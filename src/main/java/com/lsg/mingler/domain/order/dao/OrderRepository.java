@@ -5,12 +5,19 @@ import com.lsg.mingler.domain.order.entity.OrderStatus;
 import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
+
+    /**
+     * 회원의 주문을 최신 생성순으로 페이지 조회한다.
+     */
+    Page<Order> findByMemberIdOrderByCreatedAtDescIdDesc(Long memberId, Pageable pageable);
 
     /**
      * 동일한 주문번호를 사용하는 주문이 존재하는지 확인한다.

@@ -16,6 +16,11 @@ import org.springframework.data.repository.query.Param;
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     /**
+     * 여러 주문의 결제 시도를 주문별 최신순으로 일괄 조회한다.
+     */
+    List<Payment> findAllByOrderIdInOrderByCreatedAtDescIdDesc(Collection<Long> orderIds);
+
+    /**
      * 회원 범위에서 멱등성 키가 일치하는 기존 결제를 조회한다.
      *
      * @param memberId 회원 ID

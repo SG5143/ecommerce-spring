@@ -44,7 +44,8 @@ public class SecurityConfig {
                         // 장바구니는 회원·비회원 공용. 병합만 로그인 회원으로 제한
                         .requestMatchers(HttpMethod.POST, "/api/v1/cart/merge").authenticated()
                         .requestMatchers("/api/v1/cart", "/api/v1/cart/**").permitAll()
-                        // 주문서 생성은 회원·비회원 공용
+                        // 주문내역은 로그인 회원 전용, 주문서 생성은 회원·비회원 공용
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders").permitAll()
                         // 결제 API는 회원 JWT 또는 비회원 주문 토큰으로 서비스 계층에서 소유권 확인
                         .requestMatchers("/api/v1/payments/**").permitAll()
