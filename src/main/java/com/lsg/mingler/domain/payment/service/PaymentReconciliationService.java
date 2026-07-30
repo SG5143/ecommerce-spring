@@ -43,11 +43,13 @@ public class PaymentReconciliationService {
                         cutoff,
                         PageRequest.of(0, properties.reconciliation().batchSize()));
 
+        log.info("결제 재조정 대상 조회를 완료. count={}, cutoff={}", payments.size(), cutoff);
+
         for (Payment payment : payments) {
             try {
                 reconcile(payment.getPgOrderId());
             } catch (RuntimeException e) {
-                log.warn("결제 재조정에 실패했습니다. pgOrderId={}", payment.getPgOrderId(), e);
+                log.warn("결제 재조정에 실패. pgOrderId={}", payment.getPgOrderId(), e);
             }
         }
     }
