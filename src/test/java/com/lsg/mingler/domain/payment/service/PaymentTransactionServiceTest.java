@@ -330,6 +330,45 @@ class PaymentTransactionServiceTest {
     }
 
     @Test
+    void 동일한_멱등성키의_주문이_다르면_중복요청으로_거부한다() {
+        Order order = memberOrder(500L, 7L, 20_000);
+        Payment payment = payment(700L, 501L, 7L, 20_000);
+        when(orderRepository.findByOrderNumberForUpdate("ORD-1")).thenReturn(Optional.of(order));
+        when(paymentRepository.findByMemberIdAndIdempotencyKey(7L, "key-1"))
+                .thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentTransactionService.confirm(
+                7L, null, command(20_000)))
+                .isInstanceOf(DuplicateException.class)
+                .hasMessageContaining("이전 요청과 달라");
+
+        verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
+        verify(productOptionRepository, never()).findAllByIdInForUpdate(any());
+        verify(paymentRepository, never()).save(any());
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(any());
+    }
+
+    @Test
+    void 동일한_멱등성키의_결제수단이_다르면_중복요청으로_거부한다() {
+        Order order = memberOrder(500L, 7L, 20_000);
+        Payment payment = payment(700L, 500L, 7L, 20_000);
+        ReflectionTestUtils.setField(payment, "paymentMethod", "TRANSFER");
+        when(orderRepository.findByOrderNumberForUpdate("ORD-1")).thenReturn(Optional.of(order));
+        when(paymentRepository.findByMemberIdAndIdempotencyKey(7L, "key-1"))
+                .thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentTransactionService.confirm(
+                7L, null, command(20_000)))
+                .isInstanceOf(DuplicateException.class)
+                .hasMessageContaining("이전 요청과 달라");
+
+        verify(orderItemRepository, never()).findAllByOrderIdOrderByIdAsc(any());
+        verify(productOptionRepository, never()).findAllByIdInForUpdate(any());
+        verify(paymentRepository, never()).save(any());
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(any());
+    }
+
+    @Test
     void 다른_회원의_주문은_존재하지_않는_것처럼_처리한다() {
         Order order = memberOrder(500L, 8L, 20_000);
         when(orderRepository.findByOrderNumberForUpdate("ORD-1")).thenReturn(Optional.of(order));

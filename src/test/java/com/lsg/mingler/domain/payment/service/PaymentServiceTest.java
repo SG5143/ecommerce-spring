@@ -74,12 +74,52 @@ class PaymentServiceTest {
     }
 
     @Test
+    void 비회원_결제요청은_주문과_토큰해시를_포함한_범위로_조정한다() {
+        PaymentConfirmRequest request = new PaymentConfirmRequest(" ORD-1 ", 10_000, "card");
+        String expectedFingerprint = HashUtils.sha256Hex("5:ORD-15:100004:CARD7:SUCCESS");
+        when(requestCoordinator.coordinate(
+                eq("GUEST:guest-hash:ORD-1:key-1"),
+                eq(expectedFingerprint),
+                any())).thenReturn(null);
+
+        paymentService.confirm(null, "guest-hash", " key-1 ", null, request);
+
+        verify(requestCoordinator).coordinate(
+                eq("GUEST:guest-hash:ORD-1:key-1"),
+                eq(expectedFingerprint),
+                any());
+    }
+
+    @Test
     void 비회원_토큰이_없으면_결제를_거부한다() {
         PaymentConfirmRequest request = new PaymentConfirmRequest("ORD-1", 10_000, "CARD");
 
         assertThatThrownBy(() -> paymentService.confirm(null, null, "key-1", null, request))
                 .isInstanceOf(AuthenticationException.class)
                 .hasMessageContaining("토큰");
+
+        verify(requestCoordinator, never()).coordinate(any(), any(), any());
+    }
+
+    @Test
+    void 빈_멱등성키는_결제요청을_거부한다() {
+        PaymentConfirmRequest request = new PaymentConfirmRequest("ORD-1", 10_000, "CARD");
+
+        assertThatThrownBy(() -> paymentService.confirm(7L, null, "   ", null, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("멱등성 키가 필요합니다");
+
+        verify(requestCoordinator, never()).coordinate(any(), any(), any());
+    }
+
+    @Test
+    void 백자를_초과한_멱등성키는_결제요청을_거부한다() {
+        PaymentConfirmRequest request = new PaymentConfirmRequest("ORD-1", 10_000, "CARD");
+        String tooLongKey = "k".repeat(101);
+
+        assertThatThrownBy(() -> paymentService.confirm(7L, null, tooLongKey, null, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("100자 이하여야 합니다");
 
         verify(requestCoordinator, never()).coordinate(any(), any(), any());
     }
