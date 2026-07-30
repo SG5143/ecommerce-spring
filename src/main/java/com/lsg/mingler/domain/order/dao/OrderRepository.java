@@ -1,7 +1,9 @@
 package com.lsg.mingler.domain.order.dao;
 
 import com.lsg.mingler.domain.order.entity.Order;
+import com.lsg.mingler.domain.order.entity.OrderStatus;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -25,6 +27,23 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * @return 동일한 토큰 해시가 존재하면 {@code true}
      */
     boolean existsByGuestTokenHash(String guestTokenHash);
+
+    /**
+     * 회원의 집계 대상 주문에 대해 할인과 배송비가 반영된 최종 결제금액을 합산한다.
+     *
+     * @param memberId 조회할 회원 식별자
+     * @param statuses 총 구매 금액에 포함할 주문 상태
+     * @return 대상 주문이 없으면 0, 있으면 최종 결제금액 합계
+     */
+    @Query("""
+            SELECT COALESCE(SUM(o.totalAmount), 0L)
+            FROM Order o
+            WHERE o.memberId = :memberId
+              AND o.status IN :statuses
+            """)
+    long sumTotalAmountByMemberIdAndStatuses(
+            @Param("memberId") Long memberId,
+            @Param("statuses") Collection<OrderStatus> statuses);
 
     /**
      * 결제 처리 중 동일 주문의 동시 변경을 막기 위해 주문번호로 주문을 조회하고

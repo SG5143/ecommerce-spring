@@ -5,12 +5,16 @@ import com.lsg.mingler.domain.member.dao.MemberAddressRepository;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.dto.MemberCheckIdResponse;
 import com.lsg.mingler.domain.member.dto.MemberPasswordUpdateRequest;
+import com.lsg.mingler.domain.member.dto.MemberSummaryResponse;
 import com.lsg.mingler.domain.member.dto.MemberUpdateRequest;
 import com.lsg.mingler.domain.member.entity.Member;
+import com.lsg.mingler.domain.order.dao.OrderRepository;
+import com.lsg.mingler.domain.order.entity.OrderStatus;
 import com.lsg.mingler.global.error.DuplicateException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +35,9 @@ class MemberServiceTest {
 
     @Mock
     private MemberAddressRepository memberAddressRepository;
+
+    @Mock
+    private OrderRepository orderRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -129,6 +136,40 @@ class MemberServiceTest {
 
         assertThat(response.passed()).isFalse();
         assertThat(response.msg()).isEqualTo("아이디는 소문자 영문으로 시작하는 소문자/숫자/.,_ 조합이어야 합니다.");
+    }
+
+    @Test
+    void 마이샵_요약에_집계_대상_주문의_총_구매_금액을_반환한다() {
+        Set<OrderStatus> includedStatuses = Set.of(
+                OrderStatus.PAID,
+                OrderStatus.PREPARING,
+                OrderStatus.SHIPPING,
+                OrderStatus.DELIVERED,
+                OrderStatus.RETURN_REQUESTED
+        );
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember()));
+        when(orderRepository.sumTotalAmountByMemberIdAndStatuses(1L, includedStatuses)).thenReturn(34_500L);
+
+        MemberSummaryResponse response = memberService.getSummary(1L);
+
+        assertThat(response.totalPurchaseAmount()).isEqualTo(34_500L);
+        verify(orderRepository).sumTotalAmountByMemberIdAndStatuses(1L, includedStatuses);
+    }
+
+    @Test
+    void 집계_대상_주문이_없으면_총_구매_금액은_0이다() {
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember()));
+        when(orderRepository.sumTotalAmountByMemberIdAndStatuses(1L, Set.of(
+                OrderStatus.PAID,
+                OrderStatus.PREPARING,
+                OrderStatus.SHIPPING,
+                OrderStatus.DELIVERED,
+                OrderStatus.RETURN_REQUESTED
+        ))).thenReturn(0L);
+
+        MemberSummaryResponse response = memberService.getSummary(1L);
+
+        assertThat(response.totalPurchaseAmount()).isZero();
     }
 
     @Test
