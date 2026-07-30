@@ -38,3 +38,31 @@ jwt:
   secret: "change-me-to-a-base64-encoded-256bit-secret-key-value-here=="
   access-token-validity: PT30M   # Access 토큰 수명 (짧게 유지해 탈취 피해 최소화)
   refresh-token-validity: P14D   # Refresh 토큰 수명
+
+payment:
+  # 사용할 결제 구현체입니다. 기본값은 CI·오프라인 개발용 virtual이며, 토스 연동 시 toss로 설정합니다.
+  provider: ${PAYMENT_PROVIDER:virtual}
+  toss:
+    # 브라우저의 토스 결제 SDK 초기화에 사용되는 공개 가능한 클라이언트 키입니다.
+    client-key: ${TOSS_CLIENT_KEY:}
+    # 승인·조회 API 인증에 사용하는 서버 전용 키입니다. 클라이언트 코드나 로그에 노출하면 안 됩니다.
+    secret-key: ${TOSS_SECRET_KEY:}
+    # 토스페이먼츠 Core API 기본 주소입니다.
+    base-url: https://api.tosspayments.com
+    # 테스트 오류 재현용 코드입니다. local 프로필과 테스트 키를 사용할 때만 요청에 포함됩니다.
+    test-code: ${TOSS_TEST_CODE:}
+    # 토스 API 서버와 연결을 맺을 때까지 기다리는 최대 시간입니다.
+    connect-timeout: ${TOSS_CONNECT_TIMEOUT:PT3S}
+    # 연결 후 토스 API 응답을 기다리는 최대 시간입니다.
+    read-timeout: ${TOSS_READ_TIMEOUT:PT10S}
+  reconciliation:
+    # 결과가 불명확한 PROCESSING 결제를 다시 조회하는 작업의 실행 간격입니다.
+    fixed-delay: ${PAYMENT_RECONCILE_FIXED_DELAY:PT30S}
+    # PROCESSING 전환 후 이 시간이 지난 결제부터 재조정 대상으로 조회합니다.
+    processing-age: ${PAYMENT_RECONCILE_PROCESSING_AGE:PT10S}
+    # 결제를 찾을 수 없는 상태가 이 시간 이상 지속되면 만료 실패로 확정합니다.
+    expiry-grace: ${PAYMENT_RECONCILE_EXPIRY_GRACE:PT15M}
+    # 결제창 인증을 시작하지 않은 PENDING 준비 건을 취소할 때 적용하는 유효시간입니다.
+    preparation-ttl: ${PAYMENT_PREPARATION_TTL:PT30M}
+    # 재조정 작업 한 번에 처리할 최대 결제 건수입니다.
+    batch-size: ${PAYMENT_RECONCILE_BATCH_SIZE:100}
