@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -31,6 +32,16 @@ public class PaymentIdentifierGenerator {
      */
     public String generateTransactionKey() {
         return "VPG-" + randomHex(TRANSACTION_KEY_BYTES);
+    }
+
+    public String generatePgOrderId(String provider) {
+        return provider + "-" + UUID.randomUUID();
+    }
+
+    public String customerKeyFrom(String pgOrderId) {
+        int separator = pgOrderId.indexOf('-');
+        String randomPart = separator >= 0 ? pgOrderId.substring(separator + 1) : pgOrderId;
+        return "customer-" + randomPart;
     }
 
     /**
