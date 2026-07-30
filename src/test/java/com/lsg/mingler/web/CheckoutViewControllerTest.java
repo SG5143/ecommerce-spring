@@ -47,4 +47,15 @@ class CheckoutViewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("checkout/complete"));
     }
+
+    @Test
+    void 비회원도_토스_성공과_실패_리다이렉트_화면에_접근할_수_있다() throws Exception {
+        mockMvc.perform(get("/checkout/payment/success"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("checkout/payment-success"));
+
+        mockMvc.perform(get("/checkout/payment/fail"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("checkout/payment-fail"));
+    }
 }

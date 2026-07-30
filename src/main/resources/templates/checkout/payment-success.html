@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>결제 승인 확인 - Mingler</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/checkout-state.js}" defer></script>
+    <script th:src="@{/js/checkout-payment-success.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+<main class="checkout-page checkout-complete-page">
+    <div class="checkout-complete-head">
+        <span class="checkout-complete-mark" aria-hidden="true">…</span>
+        <h1>결제 결과를 확인하고 있습니다.</h1>
+        <p id="payment-success-message" role="status" aria-live="polite">잠시만 기다려주세요.</p>
+        <button type="button" id="payment-status-retry" class="checkout-primary-btn" hidden>다시 확인</button>
+    </div>
+</main>
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>

@@ -96,9 +96,26 @@
             throw new Error('갱신할 결제 정보가 올바르지 않습니다.');
         }
         const next = Object.assign({}, pending, {
-            idempotencyKey: createIdempotencyKey()
+            idempotencyKey: createIdempotencyKey(),
+            preparedPayment: null,
+            approvalCallback: null
         });
         return write(PENDING_KEY, next);
+    }
+
+    function updatePending(pending, changes) {
+        if (!pending || !pending.order || !pending.order.orderNumber) {
+            throw new Error('갱신할 결제 정보가 올바르지 않습니다.');
+        }
+        return write(PENDING_KEY, Object.assign({}, pending, changes || {}));
+    }
+
+    function setPreparedPayment(pending, preparedPayment) {
+        return updatePending(pending, { preparedPayment: preparedPayment });
+    }
+
+    function setApprovalCallback(pending, approvalCallback) {
+        return updatePending(pending, { approvalCallback: approvalCallback });
     }
 
     function getComplete() {
@@ -136,6 +153,9 @@
         setPending: setPending,
         clearPending: clearPending,
         renewPaymentAttempt: renewPaymentAttempt,
+        setPreparedPayment: setPreparedPayment,
+        setApprovalCallback: setApprovalCallback,
+        updatePending: updatePending,
         getComplete: getComplete,
         completePayment: completePayment,
         clearComplete: clearComplete

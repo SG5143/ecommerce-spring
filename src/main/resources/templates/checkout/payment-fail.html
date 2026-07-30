@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>결제 인증 실패 - Mingler</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/checkout-state.js}" defer></script>
+    <script th:src="@{/js/checkout-payment-fail.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+<main class="checkout-page checkout-complete-page">
+    <div class="checkout-complete-head">
+        <h1>결제가 완료되지 않았습니다.</h1>
+        <p id="payment-fail-message" role="alert">결제 인증 결과를 확인하고 있습니다.</p>
+        <a th:href="@{/checkout/payment}" id="payment-retry-link" class="checkout-primary-link" hidden>다시 결제하기</a>
+    </div>
+</main>
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>
