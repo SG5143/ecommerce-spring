@@ -6,7 +6,7 @@
     <title>결제 확인 - Mingler</title>
     <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
-    <script th:if="${paymentProvider == 'toss'}"
+    <script th:if="${tossPaymentAvailable}"
             src="https://js.tosspayments.com/v2/standard" defer></script>
     <script th:src="@{/js/checkout-state.js}" defer></script>
     <script th:src="@{/js/checkout-payment.js}" defer></script>
@@ -14,9 +14,7 @@
 <body>
 <div th:replace="~{layout/header :: header}"></div>
 
-<main class="checkout-page checkout-payment-page"
-      id="payment-page"
-      th:attr="data-payment-provider=${paymentProvider}">
+<main class="checkout-page checkout-payment-page" id="payment-page">
     <ol class="checkout-steps" aria-label="주문 진행 단계">
         <li>01 주문서 작성</li>
         <li class="is-current" aria-current="step">02 결제</li>
@@ -35,11 +33,21 @@
 
             <section class="checkout-section">
                 <h2>결제수단</h2>
-                <label class="checkout-payment-method">
-                    <input type="radio" name="paymentMethod" value="CARD" checked/>
-                    <span>신용·체크카드</span>
-                    <small th:text="${paymentProvider == 'toss'} ? '토스페이먼츠 테스트 결제창으로 진행됩니다.' : '가상 결제로 즉시 승인됩니다.'"></small>
-                </label>
+                <div class="checkout-payment-methods">
+                    <label class="checkout-payment-method" th:if="${tossPaymentAvailable}">
+                        <input type="radio" name="paymentProvider" value="TOSS" checked/>
+                        <span>토스페이먼츠 테스트 결제</span>
+                        <small>토스페이먼츠 테스트 카드 결제창으로 진행됩니다.</small>
+                    </label>
+                    <label class="checkout-payment-method">
+                        <input type="radio"
+                               name="paymentProvider"
+                               value="VIRTUAL"
+                               th:checked="${!tossPaymentAvailable}"/>
+                        <span>가상 즉시결제</span>
+                        <small>실제 금액이 청구되지 않는 포트폴리오 체험 결제이며 즉시 승인됩니다.</small>
+                    </label>
+                </div>
             </section>
         </div>
 

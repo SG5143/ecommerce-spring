@@ -1,11 +1,10 @@
 document.addEventListener('DOMContentLoaded', function () {
     const state = window.checkoutState;
     let pending = state.getPending();
-    const page = document.getElementById('payment-page');
-    const provider = (page.dataset.paymentProvider || 'virtual').toUpperCase();
     const content = document.getElementById('payment-content');
     const message = document.getElementById('payment-message');
     const confirmButton = document.getElementById('payment-confirm');
+    const providerInputs = document.querySelectorAll('input[name="paymentProvider"]');
 
     if (!pending) {
         if (state.getSelection()) {
@@ -80,15 +79,26 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function headers() {
-        const result = {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': pending.idempotencyKey
-        };
+    function ownershipHeaders() {
+        const result = {};
         if (pending.ownerType === 'GUEST') {
             result['X-Guest-Order-Token'] = pending.guestOrderToken;
         }
         return result;
+    }
+
+    function headers() {
+        return Object.assign({
+            'Content-Type': 'application/json',
+            'Idempotency-Key': pending.idempotencyKey
+        }, ownershipHeaders());
+    }
+
+    function setPaymentControlsDisabled(disabled) {
+        confirmButton.disabled = disabled;
+        providerInputs.forEach(function (input) {
+            input.disabled = disabled;
+        });
     }
 
     function createVirtualPaymentKey(orderId) {
@@ -96,6 +106,54 @@ document.addEventListener('DOMContentLoaded', function () {
             return 'VIRTUAL-' + window.crypto.randomUUID();
         }
         return 'VIRTUAL-' + orderId;
+    }
+
+    function selectedPaymentProvider() {
+        const selected = document.querySelector('input[name="paymentProvider"]:checked');
+        return selected ? selected.value : null;
+    }
+
+    function resetPreparationIfProviderChanged(paymentProvider) {
+        const prepared = pending.preparedPayment;
+        if (!prepared || prepared.paymentProvider === paymentProvider) {
+            return Promise.resolve(true);
+        }
+
+        confirmButton.textContent = '기존 결제 준비를 정리하는 중...';
+        return requestJson(
+            '/api/v1/payments/preparations/' + encodeURIComponent(prepared.orderId) + '/cancel',
+            {
+                method: 'POST',
+                headers: ownershipHeaders()
+            })
+            .then(function () {
+                pending = state.renewPaymentAttempt(pending);
+                return true;
+            })
+            .catch(function (error) {
+                if (error.status === 404) {
+                    pending = state.renewPaymentAttempt(pending);
+                    return true;
+                }
+                if (error.status === 409) {
+                    window.location.replace('/checkout/payment/success');
+                    return false;
+                }
+                throw error;
+            });
+    }
+
+    function preparePayment(paymentProvider) {
+        confirmButton.textContent = '결제를 준비하는 중...';
+        return requestJson('/api/v1/payments/prepare', {
+            method: 'POST',
+            headers: headers(),
+            body: JSON.stringify({
+                orderNumber: order.orderNumber,
+                paymentMethod: 'CARD',
+                paymentProvider: paymentProvider
+            })
+        });
     }
 
     function confirmVirtual(prepared) {
@@ -155,27 +213,35 @@ document.addEventListener('DOMContentLoaded', function () {
             showMessage('비회원 주문 확인 정보가 없어 결제를 계속할 수 없습니다.');
             return;
         }
+        if (pending.approvalCallback) {
+            window.location.replace('/checkout/payment/success');
+            return;
+        }
 
-        confirmButton.disabled = true;
-        confirmButton.textContent = '결제를 준비하는 중...';
+        const paymentProvider = selectedPaymentProvider();
+        if (!paymentProvider) {
+            showMessage('결제수단을 선택해주세요.');
+            return;
+        }
+
+        setPaymentControlsDisabled(true);
         showMessage('');
-        requestJson('/api/v1/payments/prepare', {
-            method: 'POST',
-            headers: headers(),
-            body: JSON.stringify({
-                orderNumber: order.orderNumber,
-                paymentMethod: 'CARD'
+        resetPreparationIfProviderChanged(paymentProvider)
+            .then(function (canPrepare) {
+                return canPrepare ? preparePayment(paymentProvider) : null;
             })
-        })
             .then(function (prepared) {
+                if (!prepared) {
+                    return;
+                }
                 pending = state.setPreparedPayment(pending, prepared);
                 confirmButton.textContent = '결제를 처리하는 중...';
-                return provider === 'TOSS'
+                return prepared.paymentProvider === 'TOSS'
                     ? openTossWindow(prepared)
                     : confirmVirtual(prepared);
             })
             .catch(function (error) {
-                confirmButton.disabled = false;
+                setPaymentControlsDisabled(false);
                 if (error.status === 402) {
                     pending = state.renewPaymentAttempt(pending);
                     confirmButton.textContent = '새 요청으로 다시 결제하기';

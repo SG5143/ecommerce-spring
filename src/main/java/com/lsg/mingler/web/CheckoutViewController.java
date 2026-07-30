@@ -1,6 +1,6 @@
 package com.lsg.mingler.web;
 
-import com.lsg.mingler.domain.payment.service.PaymentProperties;
+import com.lsg.mingler.domain.payment.service.PaymentGatewayResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 @RequiredArgsConstructor
 public class CheckoutViewController {
 
-    private final PaymentProperties paymentProperties;
+    private final PaymentGatewayResolver paymentGatewayResolver;
 
     @GetMapping("/checkout")
     public String order() {
@@ -19,7 +19,7 @@ public class CheckoutViewController {
 
     @GetMapping("/checkout/payment")
     public String payment(Model model) {
-        model.addAttribute("paymentProvider", paymentProperties.provider());
+        model.addAttribute("tossPaymentAvailable", paymentGatewayResolver.isAvailable("TOSS"));
         return "checkout/payment";
     }
 
