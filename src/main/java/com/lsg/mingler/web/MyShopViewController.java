@@ -16,4 +16,9 @@ public class MyShopViewController {
         return "myshop/member-info";
     }
 
+    @GetMapping("/myshop/orders")
+    public String orders() {
+        return "myshop/orders";
+    }
+
 }
