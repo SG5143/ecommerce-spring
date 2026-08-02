@@ -42,6 +42,7 @@ public class PaymentAttemptQueryService {
                 -> new ResourceNotFoundException("주문을 찾을 수 없습니다."));
 
         PaymentOrderOwnershipPolicy.validate(order, memberId, guestOrderTokenHash);
+        PaymentOrderAvailabilityPolicy.validate(order);
 
         return PaymentConfirmResponseMapper.from(order, payment);
     }

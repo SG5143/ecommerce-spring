@@ -59,6 +59,7 @@ class PaymentProcessingTransactionService {
                 -> new ResourceNotFoundException("결제 준비 정보를 찾을 수 없습니다."));
 
         PaymentOrderOwnershipPolicy.validate(order, memberId, guestOrderTokenHash);
+        PaymentOrderAvailabilityPolicy.validate(order);
 
         validateRequest(payment, idempotencyKey, paymentKey, amount);
 

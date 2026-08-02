@@ -8,6 +8,7 @@ import com.lsg.mingler.domain.payment.dao.PaymentRepository;
 import com.lsg.mingler.domain.payment.dto.PaymentPrepareResponse;
 import com.lsg.mingler.domain.payment.entity.Payment;
 import com.lsg.mingler.global.error.DuplicateException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -148,6 +149,18 @@ class PaymentPreparationTransactionServiceTest {
                 7L, null, "ORD-1", "CARD", "VIRTUAL", "key-1"))
                 .isInstanceOf(DuplicateException.class)
                 .hasMessageContaining("이전 요청과 다릅니다");
+    }
+
+    @Test
+    void 만료주문은_결제를_준비할_수_없다() {
+        Order order = order();
+        order.changeStatus(com.lsg.mingler.domain.order.entity.OrderStatus.EXPIRED);
+        when(orderRepository.findByOrderNumberForUpdate("ORD-1")).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.prepare(
+                7L, null, "ORD-1", "CARD", "VIRTUAL", "key-1"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("주문을 찾을 수 없습니다.");
     }
 
     private Order order() {

@@ -60,6 +60,7 @@ class PaymentPreparationTransactionService {
         Order order = orderRepository.findByOrderNumberForUpdate(orderNumber).orElseThrow(()
                 -> new ResourceNotFoundException("주문을 찾을 수 없습니다."));
         PaymentOrderOwnershipPolicy.validate(order, memberId, guestOrderTokenHash);
+        PaymentOrderAvailabilityPolicy.validate(order);
 
         Optional<Payment> existing = findExisting(order.getId(), memberId, idempotencyKey);
         if (existing.isPresent()) {

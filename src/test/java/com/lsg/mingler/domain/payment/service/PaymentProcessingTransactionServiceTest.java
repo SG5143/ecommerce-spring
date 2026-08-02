@@ -4,9 +4,11 @@ import com.lsg.mingler.domain.order.dao.OrderItemRepository;
 import com.lsg.mingler.domain.order.dao.OrderRepository;
 import com.lsg.mingler.domain.order.entity.Order;
 import com.lsg.mingler.domain.order.entity.OrderItem;
+import com.lsg.mingler.domain.order.entity.OrderStatus;
 import com.lsg.mingler.domain.payment.dao.PaymentRepository;
 import com.lsg.mingler.domain.payment.entity.Payment;
 import com.lsg.mingler.domain.payment.entity.PaymentStatus;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -90,6 +93,22 @@ class PaymentProcessingTransactionServiceTest {
 
         assertThat(context.provider()).isEqualTo("VIRTUAL");
         assertThat(context.gatewayCommand().virtualScenario()).isEqualTo(VirtualPaymentScenario.SUCCESS);
+    }
+
+    @Test
+    void 만료주문은_결제승인을_시작할_수_없다() {
+        Payment payment = preparedPayment();
+        Order order = order();
+        order.changeStatus(OrderStatus.EXPIRED);
+        when(paymentRepository.findByPgOrderId("TOSS-order")).thenReturn(Optional.of(payment));
+        when(orderRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByPgOrderIdForUpdate("TOSS-order")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> service.start(
+                7L, null, "key-1", "payment-key", "TOSS-order", 20_000, null))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("주문을 찾을 수 없습니다.");
+        verify(inventoryService, never()).reserve(org.mockito.ArgumentMatchers.anyList());
     }
 
     private void stubLocked(Payment payment, Order order, List<OrderItem> items) {

@@ -255,10 +255,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     confirmButton.textContent = '결제하기';
                 }
                 if (error.status === 404) {
+                    const returnUrl = state.getReturnUrl(pending);
+                    const noticeKey = pending.source === 'DIRECT' ? 'productNotice' : 'cartNotice';
                     state.clearPending();
                     state.clearSelection();
-                    sessionStorage.setItem('cartNotice', error.message);
-                    window.location.replace('/cart');
+                    sessionStorage.setItem(noticeKey, error.message);
+                    window.location.replace(returnUrl);
                     return;
                 }
                 showMessage(error.status

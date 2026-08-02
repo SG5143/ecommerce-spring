@@ -45,6 +45,7 @@ public class PaymentPreparationCancelService {
                 -> new ResourceNotFoundException("결제 준비 정보를 찾을 수 없습니다."));
 
         PaymentOrderOwnershipPolicy.validate(order, memberId, guestOrderTokenHash);
+        PaymentOrderAvailabilityPolicy.validate(order);
 
         if (payment.getStatus() == PaymentStatus.PENDING) {
             payment.markCancelled("PAY_PROCESS_CANCELED", "결제 인증이 취소되거나 실패했습니다.");
