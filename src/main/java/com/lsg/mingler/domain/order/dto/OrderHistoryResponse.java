@@ -22,6 +22,8 @@ public record OrderHistoryResponse(
             String orderNumber,
             LocalDateTime orderedAt,
             OrderStatus orderStatus,
+            OrderHistoryDisplayStatus displayStatus,
+            LocalDateTime statusChangedAt,
             Integer merchandiseAmount,
             Integer discountAmount,
             Integer shippingFee,
@@ -48,7 +50,10 @@ public record OrderHistoryResponse(
             PaymentStatus paymentStatus,
             String paymentMethod,
             String pgProvider,
-            LocalDateTime approvedAt
+            LocalDateTime approvedAt,
+            Integer amount,
+            LocalDateTime statusChangedAt,
+            String failureReason
     ) {
     }
 }

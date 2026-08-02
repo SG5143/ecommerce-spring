@@ -2,9 +2,11 @@ package com.lsg.mingler.domain.order.service;
 
 import com.lsg.mingler.domain.order.dao.OrderItemRepository;
 import com.lsg.mingler.domain.order.dao.OrderRepository;
+import com.lsg.mingler.domain.order.dto.OrderHistoryDisplayStatus;
 import com.lsg.mingler.domain.order.dto.OrderHistoryResponse;
 import com.lsg.mingler.domain.order.entity.Order;
 import com.lsg.mingler.domain.order.entity.OrderItem;
+import com.lsg.mingler.domain.order.entity.OrderStatus;
 import com.lsg.mingler.domain.payment.dao.PaymentRepository;
 import com.lsg.mingler.domain.payment.entity.Payment;
 import com.lsg.mingler.domain.payment.entity.PaymentStatus;
@@ -80,6 +82,10 @@ class OrderHistoryServiceTest {
         });
         assertThat(response.orders().getFirst().payment().paymentNumber()).isEqualTo("PAY-SUCCESS");
         assertThat(response.orders().getFirst().payment().paymentStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(response.orders().getFirst().displayStatus())
+                .isEqualTo(OrderHistoryDisplayStatus.PAYMENT_COMPLETED);
+        assertThat(response.orders().getFirst().statusChangedAt())
+                .isEqualTo(LocalDateTime.of(2026, 7, 31, 10, 3));
         assertThat(response.orders().get(1).payment()).isNull();
         verify(orderRepository).findByMemberIdOrderByCreatedAtDescIdDesc(
                 7L,
@@ -107,6 +113,98 @@ class OrderHistoryServiceTest {
 
         assertThat(response.orders().getFirst().payment().paymentNumber()).isEqualTo("PAY-FAILED");
         assertThat(response.orders().getFirst().payment().paymentStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(response.orders().getFirst().displayStatus())
+                .isEqualTo(OrderHistoryDisplayStatus.PAYMENT_FAILED);
+        assertThat(response.orders().getFirst().statusChangedAt())
+                .isEqualTo(LocalDateTime.of(2026, 7, 31, 10, 5));
+    }
+
+    @Test
+    void 결제대기_주문은_대표결제의_상태와_발생시각을_표시한다() {
+        List<Order> orders = List.of(
+                order(10L, "ORD-NONE", LocalDateTime.of(2026, 7, 31, 10, 0)),
+                order(11L, "ORD-PENDING", LocalDateTime.of(2026, 7, 31, 9, 0)),
+                order(12L, "ORD-PROCESSING", LocalDateTime.of(2026, 7, 31, 8, 0)),
+                order(13L, "ORD-FAILED", LocalDateTime.of(2026, 7, 31, 7, 0)),
+                order(14L, "ORD-CANCELLED", LocalDateTime.of(2026, 7, 31, 6, 0))
+        );
+        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
+                7L, PageRequest.of(0, OrderHistoryService.PAGE_SIZE)))
+                .thenReturn(new PageImpl<>(orders, PageRequest.of(0, OrderHistoryService.PAGE_SIZE), 5));
+        when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(10L, 11L, 12L, 13L, 14L)))
+                .thenReturn(List.of());
+
+        LocalDateTime pendingAt = LocalDateTime.of(2026, 7, 31, 9, 5);
+        LocalDateTime processingAt = LocalDateTime.of(2026, 7, 31, 8, 5);
+        LocalDateTime failedAt = LocalDateTime.of(2026, 7, 31, 7, 5);
+        LocalDateTime cancelledAt = LocalDateTime.of(2026, 7, 31, 6, 5);
+        when(paymentRepository.findAllByOrderIdInOrderByCreatedAtDescIdDesc(
+                List.of(10L, 11L, 12L, 13L, 14L))).thenReturn(List.of(
+                payment(201L, 11L, "PAY-PENDING", PaymentStatus.PENDING, pendingAt),
+                payment(202L, 12L, "PAY-PROCESSING", PaymentStatus.PROCESSING, processingAt),
+                payment(203L, 13L, "PAY-FAILED", PaymentStatus.FAILED, failedAt),
+                payment(204L, 14L, "PAY-CANCELLED", PaymentStatus.CANCELLED, cancelledAt)
+        ));
+
+        OrderHistoryResponse response = orderHistoryService.getHistory(7L, 0);
+
+        assertThat(response.orders()).extracting(OrderHistoryResponse.OrderSummary::displayStatus)
+                .containsExactly(
+                        OrderHistoryDisplayStatus.PAYMENT_PENDING,
+                        OrderHistoryDisplayStatus.PAYMENT_PENDING,
+                        OrderHistoryDisplayStatus.PAYMENT_PROCESSING,
+                        OrderHistoryDisplayStatus.PAYMENT_FAILED,
+                        OrderHistoryDisplayStatus.PAYMENT_CANCELLED
+                );
+        assertThat(response.orders()).extracting(OrderHistoryResponse.OrderSummary::statusChangedAt)
+                .containsExactly(null, pendingAt, processingAt, failedAt, cancelledAt);
+        assertThat(response.orders().get(4).payment().failureReason()).isEqualTo("결제 처리 사유");
+    }
+
+    @Test
+    void 환불계열_결제는_결제완료_주문의_표시상태보다_우선한다() {
+        Order order = order(20L, "ORD-20", LocalDateTime.of(2026, 7, 31, 10, 0));
+        order.changeStatus(OrderStatus.PAID);
+        LocalDateTime refundedAt = LocalDateTime.of(2026, 7, 31, 12, 0);
+        Payment refunded = payment(201L, 20L, "PAY-REFUNDED", PaymentStatus.REFUNDED, refundedAt);
+        mockSingleOrder(order, refunded);
+
+        OrderHistoryResponse response = orderHistoryService.getHistory(7L, 0);
+
+        assertThat(response.orders().getFirst().displayStatus()).isEqualTo(OrderHistoryDisplayStatus.REFUNDED);
+        assertThat(response.orders().getFirst().statusChangedAt()).isEqualTo(refundedAt);
+    }
+
+    @Test
+    void 배송_주문취소_반품상태는_주문상태의_발생시각을_사용한다() {
+        LocalDateTime shippingAt = LocalDateTime.of(2026, 7, 31, 11, 0);
+        LocalDateTime cancelledAt = LocalDateTime.of(2026, 7, 31, 12, 0);
+        LocalDateTime returnedAt = LocalDateTime.of(2026, 7, 31, 13, 0);
+        Order shipping = orderWithStatus(20L, "ORD-SHIPPING", OrderStatus.SHIPPING,
+                "shippingStartedAt", shippingAt);
+        Order cancelled = orderWithStatus(21L, "ORD-CANCELLED", OrderStatus.CANCELLED,
+                "cancelledAt", cancelledAt);
+        Order returned = orderWithStatus(22L, "ORD-RETURNED", OrderStatus.RETURNED,
+                "returnedAt", returnedAt);
+        List<Order> orders = List.of(shipping, cancelled, returned);
+        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
+                7L, PageRequest.of(0, OrderHistoryService.PAGE_SIZE)))
+                .thenReturn(new PageImpl<>(orders, PageRequest.of(0, OrderHistoryService.PAGE_SIZE), 3));
+        when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(20L, 21L, 22L)))
+                .thenReturn(List.of());
+        when(paymentRepository.findAllByOrderIdInOrderByCreatedAtDescIdDesc(List.of(20L, 21L, 22L)))
+                .thenReturn(List.of());
+
+        OrderHistoryResponse response = orderHistoryService.getHistory(7L, 0);
+
+        assertThat(response.orders()).extracting(OrderHistoryResponse.OrderSummary::displayStatus)
+                .containsExactly(
+                        OrderHistoryDisplayStatus.SHIPPING,
+                        OrderHistoryDisplayStatus.ORDER_CANCELLED,
+                        OrderHistoryDisplayStatus.RETURNED
+                );
+        assertThat(response.orders()).extracting(OrderHistoryResponse.OrderSummary::statusChangedAt)
+                .containsExactly(shippingAt, cancelledAt, returnedAt);
     }
 
     @Test
@@ -203,9 +301,36 @@ class OrderHistoryServiceTest {
         ReflectionTestUtils.setField(payment, "id", id);
         ReflectionTestUtils.setField(payment, "status", status);
         ReflectionTestUtils.setField(payment, "createdAt", createdAt);
-        if (status == PaymentStatus.SUCCESS) {
-            ReflectionTestUtils.setField(payment, "approvedAt", createdAt);
+        ReflectionTestUtils.setField(payment, "failureReason", "결제 처리 사유");
+        switch (status) {
+            case PROCESSING -> ReflectionTestUtils.setField(payment, "processingAt", createdAt);
+            case SUCCESS -> ReflectionTestUtils.setField(payment, "approvedAt", createdAt);
+            case FAILED -> ReflectionTestUtils.setField(payment, "failedAt", createdAt);
+            case CANCELLED -> ReflectionTestUtils.setField(payment, "cancelledAt", createdAt);
+            case REFUND_PENDING -> ReflectionTestUtils.setField(payment, "refundRequestedAt", createdAt);
+            case REFUNDED -> ReflectionTestUtils.setField(payment, "refundedAt", createdAt);
+            case REFUND_FAILED -> ReflectionTestUtils.setField(payment, "refundFailedAt", createdAt);
+            case PENDING -> {
+            }
         }
         return payment;
+    }
+
+    private void mockSingleOrder(Order order, Payment payment) {
+        PageRequest pageable = PageRequest.of(0, OrderHistoryService.PAGE_SIZE);
+        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(7L, pageable))
+                .thenReturn(new PageImpl<>(List.of(order), pageable, 1));
+        when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(order.getId())))
+                .thenReturn(List.of());
+        when(paymentRepository.findAllByOrderIdInOrderByCreatedAtDescIdDesc(List.of(order.getId())))
+                .thenReturn(List.of(payment));
+    }
+
+    private Order orderWithStatus(
+            Long id, String orderNumber, OrderStatus status, String timestampField, LocalDateTime timestamp) {
+        Order order = order(id, orderNumber, LocalDateTime.of(2026, 7, 31, 10, 0));
+        ReflectionTestUtils.setField(order, "status", status);
+        ReflectionTestUtils.setField(order, timestampField, timestamp);
+        return order;
     }
 }

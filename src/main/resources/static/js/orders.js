@@ -11,25 +11,31 @@ document.addEventListener('DOMContentLoaded', function () {
     const pageNumbers = document.getElementById('order-history-page-numbers');
     const PAGE_BLOCK_SIZE = 5;
 
-    const ORDER_STATUS = {
-        PENDING_PAYMENT: { label: '결제 대기', className: 'is-pending' },
-        PAID: { label: '결제 완료', className: 'is-paid' },
-        PREPARING: { label: '상품 준비중', className: 'is-preparing' },
-        SHIPPING: { label: '배송중', className: 'is-shipping' },
-        DELIVERED: { label: '배송 완료', className: 'is-delivered' },
-        CANCELLED: { label: '주문 취소', className: 'is-cancelled' },
-        RETURN_REQUESTED: { label: '반품 요청', className: 'is-returned' },
-        RETURNED: { label: '반품 완료', className: 'is-returned' }
+    const DISPLAY_STATUS = {
+        PAYMENT_PENDING: { label: '결제 대기', className: 'is-pending', dateLabel: '결제 요청일' },
+        PAYMENT_PROCESSING: { label: '승인 확인중', className: 'is-pending', dateLabel: '승인 요청일' },
+        PAYMENT_COMPLETED: { label: '결제 완료', className: 'is-paid', dateLabel: '결제일' },
+        PAYMENT_FAILED: { label: '결제 실패', className: 'is-cancelled', dateLabel: '실패일' },
+        PAYMENT_CANCELLED: { label: '결제 취소', className: 'is-cancelled', dateLabel: '취소일' },
+        PREPARING: { label: '상품 준비중', className: 'is-preparing', dateLabel: '결제일' },
+        SHIPPING: { label: '배송중', className: 'is-shipping', dateLabel: '배송 시작일' },
+        DELIVERED: { label: '배송 완료', className: 'is-delivered', dateLabel: '배송 완료일' },
+        ORDER_CANCELLED: { label: '주문 취소', className: 'is-cancelled', dateLabel: '주문 취소일' },
+        RETURN_REQUESTED: { label: '반품 요청', className: 'is-returned', dateLabel: '반품 요청일' },
+        RETURNED: { label: '반품 완료', className: 'is-returned', dateLabel: '반품 완료일' },
+        REFUND_PENDING: { label: '환불 처리중', className: 'is-pending', dateLabel: '환불 요청일' },
+        REFUNDED: { label: '환불 완료', className: 'is-returned', dateLabel: '환불 완료일' },
+        REFUND_FAILED: { label: '환불 실패', className: 'is-cancelled', dateLabel: '환불 실패일' }
     };
     const PAYMENT_STATUS = {
-        PENDING: '결제 대기',
-        PROCESSING: '승인 확인중',
-        SUCCESS: '결제 완료',
-        FAILED: '결제 실패',
-        CANCELLED: '결제 취소',
-        REFUND_PENDING: '환불 처리중',
-        REFUNDED: '환불 완료',
-        REFUND_FAILED: '환불 실패'
+        PENDING: { label: '결제 대기', dateLabel: '결제 요청일시' },
+        PROCESSING: { label: '승인 확인중', dateLabel: '승인 요청일시' },
+        SUCCESS: { label: '결제 완료', dateLabel: '결제일시' },
+        FAILED: { label: '결제 실패', dateLabel: '실패일시' },
+        CANCELLED: { label: '결제 취소', dateLabel: '취소일시' },
+        REFUND_PENDING: { label: '환불 처리중', dateLabel: '환불 요청일시' },
+        REFUNDED: { label: '환불 완료', dateLabel: '환불 완료일시' },
+        REFUND_FAILED: { label: '환불 실패', dateLabel: '환불 실패일시' }
     };
     const PAYMENT_METHOD = {
         CARD: '카드'
@@ -107,13 +113,25 @@ document.addEventListener('DOMContentLoaded', function () {
         const header = document.createElement('header');
         header.className = 'order-history-card-head';
         const heading = document.createElement('div');
-        appendText(heading, 'time', 'order-history-date', formatDateTime(order.orderedAt));
-        appendText(heading, 'strong', 'order-history-number', '주문번호 ' + order.orderNumber);
+        heading.className = 'order-history-card-heading';
+        appendText(heading, 'time', 'order-history-date', '주문일 ' + formatDateTime(order.orderedAt));
+        appendText(heading, 'strong', 'order-history-number', '' + order.orderNumber);
         header.appendChild(heading);
 
-        const status = ORDER_STATUS[order.orderStatus]
-            || { label: order.orderStatus || '-', className: 'is-pending' };
-        appendText(header, 'span', 'order-history-status ' + status.className, status.label);
+        const status = DISPLAY_STATUS[order.displayStatus]
+            || { label: order.displayStatus || '-', className: 'is-pending', dateLabel: '처리일' };
+        const statusGroup = document.createElement('div');
+        statusGroup.className = 'order-history-status-group';
+        appendText(statusGroup, 'span', 'order-history-status ' + status.className, status.label);
+        if (order.statusChangedAt) {
+            appendText(
+                statusGroup,
+                'time',
+                'order-history-status-date',
+                status.dateLabel + ' ' + formatDateTime(order.statusChangedAt)
+            );
+        }
+        header.appendChild(statusGroup);
         card.appendChild(header);
 
         const itemList = document.createElement('ul');
@@ -191,7 +209,10 @@ document.addEventListener('DOMContentLoaded', function () {
         appendDetail(details, '상품금액', formatWon(order.merchandiseAmount));
         appendDetail(details, '할인금액', '-' + formatWon(order.discountAmount));
         appendDetail(details, '배송비', formatWon(order.shippingFee));
-        appendDetail(details, '최종 결제금액', formatWon(order.totalAmount), true);
+        const totalLabel = isCompletedPaymentDisplay(order.displayStatus)
+            ? '최종 결제금액'
+            : '주문금액';
+        appendDetail(details, totalLabel, formatWon(order.totalAmount), true);
         section.appendChild(details);
         return section;
     }
@@ -204,18 +225,43 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!payment) {
             appendDetail(details, '결제상태', '결제 시도 없음');
         } else {
+            const paymentStatus = PAYMENT_STATUS[payment.paymentStatus]
+                || { label: payment.paymentStatus || '-', dateLabel: '처리일시' };
             appendDetail(details, '결제번호', payment.paymentNumber);
-            appendDetail(details, '결제상태', PAYMENT_STATUS[payment.paymentStatus] || payment.paymentStatus);
+            appendDetail(details, '결제상태', paymentStatus.label);
+            appendDetail(details, '결제금액', formatWon(payment.amount));
             appendDetail(
                 details,
                 '결제수단',
                 PAYMENT_METHOD[payment.paymentMethod] || payment.paymentMethod || '-'
             );
             appendDetail(details, '결제 제공자', payment.pgProvider || '-');
-            appendDetail(details, '승인일시', formatDateTime(payment.approvedAt));
+            if (payment.statusChangedAt) {
+                appendDetail(details, paymentStatus.dateLabel, formatDateTime(payment.statusChangedAt));
+            }
+            if (payment.paymentStatus === 'FAILED' || payment.paymentStatus === 'CANCELLED') {
+                const fallbackReason = payment.paymentStatus === 'CANCELLED'
+                    ? '결제가 취소되었습니다.'
+                    : '결제를 완료하지 못했습니다.';
+                appendDetail(details, '사유', payment.failureReason || fallbackReason);
+            }
         }
         section.appendChild(details);
         return section;
+    }
+
+    function isCompletedPaymentDisplay(displayStatus) {
+        return [
+            'PAYMENT_COMPLETED',
+            'PREPARING',
+            'SHIPPING',
+            'DELIVERED',
+            'RETURN_REQUESTED',
+            'RETURNED',
+            'REFUND_PENDING',
+            'REFUNDED',
+            'REFUND_FAILED'
+        ].includes(displayStatus);
     }
 
     function appendDetail(parent, term, description, emphasized) {

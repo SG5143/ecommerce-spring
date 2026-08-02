@@ -904,7 +904,7 @@ button {
     border-bottom: 1px solid #eee;
 }
 
-.order-history-card-head > div {
+.order-history-card-heading {
     display: flex;
     align-items: center;
     gap: 14px;
@@ -924,6 +924,14 @@ button {
     white-space: nowrap;
 }
 
+.order-history-status-group {
+    display: flex;
+    flex: none;
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 3px;
+}
+
 .order-history-status {
     flex: none;
     color: #111;
@@ -935,6 +943,12 @@ button {
 .order-history-status.is-cancelled,
 .order-history-status.is-returned {
     color: #999;
+}
+
+.order-history-status-date {
+    color: #777;
+    font-size: 11px;
+    white-space: nowrap;
 }
 
 .order-history-items {
@@ -2737,11 +2751,11 @@ button {
     }
 
     .order-history-card-head,
-    .order-history-card-head > div {
+    .order-history-card-heading {
         align-items: flex-start;
     }
 
-    .order-history-card-head > div {
+    .order-history-card-heading {
         flex-direction: column;
         gap: 5px;
     }

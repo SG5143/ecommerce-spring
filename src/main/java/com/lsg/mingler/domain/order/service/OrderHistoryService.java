@@ -2,6 +2,7 @@ package com.lsg.mingler.domain.order.service;
 
 import com.lsg.mingler.domain.order.dao.OrderItemRepository;
 import com.lsg.mingler.domain.order.dao.OrderRepository;
+import com.lsg.mingler.domain.order.dto.OrderHistoryDisplayStatus;
 import com.lsg.mingler.domain.order.dto.OrderHistoryResponse;
 import com.lsg.mingler.domain.order.entity.Order;
 import com.lsg.mingler.domain.order.entity.OrderItem;
@@ -9,6 +10,7 @@ import com.lsg.mingler.domain.payment.dao.PaymentRepository;
 import com.lsg.mingler.domain.payment.entity.Payment;
 import com.lsg.mingler.domain.payment.entity.PaymentStatus;
 import com.lsg.mingler.global.error.AuthenticationException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -125,13 +127,20 @@ public class OrderHistoryService {
                         payment.getStatus(),
                         payment.getPaymentMethod(),
                         payment.getPgProvider(),
-                        payment.getApprovedAt()
+                        payment.getApprovedAt(),
+                        payment.getAmount(),
+                        paymentStatusChangedAt(payment),
+                        payment.getFailureReason()
                 );
+
+        OrderHistoryDisplayStatus displayStatus = resolveDisplayStatus(order, payment);
 
         return new OrderHistoryResponse.OrderSummary(
                 order.getOrderNumber(),
                 order.getCreatedAt(),
                 order.getStatus(),
+                displayStatus,
+                resolveStatusChangedAt(order, payment, displayStatus),
                 order.getMerchandiseAmount(),
                 order.getDiscountAmount(),
                 order.getShippingFee(),
@@ -139,6 +148,78 @@ public class OrderHistoryService {
                 items,
                 paymentSummary
         );
+    }
+
+    private OrderHistoryDisplayStatus resolveDisplayStatus(Order order, Payment payment) {
+        if (payment != null) {
+            OrderHistoryDisplayStatus refundStatus = switch (payment.getStatus()) {
+                case REFUND_PENDING -> OrderHistoryDisplayStatus.REFUND_PENDING;
+                case REFUNDED -> OrderHistoryDisplayStatus.REFUNDED;
+                case REFUND_FAILED -> OrderHistoryDisplayStatus.REFUND_FAILED;
+                default -> null;
+            };
+            if (refundStatus != null) {
+                return refundStatus;
+            }
+        }
+
+        return switch (order.getStatus()) {
+            case PENDING_PAYMENT -> payment == null
+                    ? OrderHistoryDisplayStatus.PAYMENT_PENDING
+                    : paymentDisplayStatus(payment.getStatus());
+            case PAID -> OrderHistoryDisplayStatus.PAYMENT_COMPLETED;
+            case PREPARING -> OrderHistoryDisplayStatus.PREPARING;
+            case SHIPPING -> OrderHistoryDisplayStatus.SHIPPING;
+            case DELIVERED -> OrderHistoryDisplayStatus.DELIVERED;
+            case CANCELLED -> OrderHistoryDisplayStatus.ORDER_CANCELLED;
+            case RETURN_REQUESTED -> OrderHistoryDisplayStatus.RETURN_REQUESTED;
+            case RETURNED -> OrderHistoryDisplayStatus.RETURNED;
+        };
+    }
+
+    private OrderHistoryDisplayStatus paymentDisplayStatus(PaymentStatus status) {
+        return switch (status) {
+            case PENDING -> OrderHistoryDisplayStatus.PAYMENT_PENDING;
+            case PROCESSING -> OrderHistoryDisplayStatus.PAYMENT_PROCESSING;
+            case SUCCESS -> OrderHistoryDisplayStatus.PAYMENT_COMPLETED;
+            case FAILED -> OrderHistoryDisplayStatus.PAYMENT_FAILED;
+            case CANCELLED -> OrderHistoryDisplayStatus.PAYMENT_CANCELLED;
+            case REFUND_PENDING -> OrderHistoryDisplayStatus.REFUND_PENDING;
+            case REFUNDED -> OrderHistoryDisplayStatus.REFUNDED;
+            case REFUND_FAILED -> OrderHistoryDisplayStatus.REFUND_FAILED;
+        };
+    }
+
+    private LocalDateTime resolveStatusChangedAt(
+            Order order, Payment payment, OrderHistoryDisplayStatus displayStatus) {
+        return switch (displayStatus) {
+            case PAYMENT_PENDING, PAYMENT_PROCESSING, PAYMENT_FAILED, PAYMENT_CANCELLED,
+                 REFUND_PENDING, REFUNDED, REFUND_FAILED -> paymentStatusChangedAt(payment);
+            case PAYMENT_COMPLETED, PREPARING -> payment != null && payment.getApprovedAt() != null
+                    ? payment.getApprovedAt()
+                    : order.getPaidAt();
+            case SHIPPING -> order.getShippingStartedAt();
+            case DELIVERED -> order.getDeliveredAt();
+            case ORDER_CANCELLED -> order.getCancelledAt();
+            case RETURN_REQUESTED -> order.getReturnRequestedAt();
+            case RETURNED -> order.getReturnedAt();
+        };
+    }
+
+    private LocalDateTime paymentStatusChangedAt(Payment payment) {
+        if (payment == null) {
+            return null;
+        }
+        return switch (payment.getStatus()) {
+            case PENDING -> payment.getCreatedAt();
+            case PROCESSING -> payment.getProcessingAt();
+            case SUCCESS -> payment.getApprovedAt();
+            case FAILED -> payment.getFailedAt();
+            case CANCELLED -> payment.getCancelledAt();
+            case REFUND_PENDING -> payment.getRefundRequestedAt();
+            case REFUNDED -> payment.getRefundedAt();
+            case REFUND_FAILED -> payment.getRefundFailedAt();
+        };
     }
 
     private OrderHistoryResponse toResponse(
