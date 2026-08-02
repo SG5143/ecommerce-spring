@@ -6,6 +6,7 @@ import com.lsg.mingler.domain.order.dto.OrderHistoryDisplayStatus;
 import com.lsg.mingler.domain.order.dto.OrderHistoryResponse;
 import com.lsg.mingler.domain.order.entity.Order;
 import com.lsg.mingler.domain.order.entity.OrderItem;
+import com.lsg.mingler.domain.order.entity.OrderStatus;
 import com.lsg.mingler.domain.payment.dao.PaymentRepository;
 import com.lsg.mingler.domain.payment.entity.Payment;
 import com.lsg.mingler.domain.payment.entity.PaymentStatus;
@@ -51,8 +52,9 @@ public class OrderHistoryService {
             throw new IllegalArgumentException("페이지 번호는 0 이상이어야 합니다.");
         }
 
-        Page<Order> orderPage = orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
+        Page<Order> orderPage = orderRepository.findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
                 memberId,
+                OrderStatus.EXPIRED,
                 PageRequest.of(page, PAGE_SIZE)
         );
         if (orderPage.isEmpty()) {
@@ -174,6 +176,7 @@ public class OrderHistoryService {
             case CANCELLED -> OrderHistoryDisplayStatus.ORDER_CANCELLED;
             case RETURN_REQUESTED -> OrderHistoryDisplayStatus.RETURN_REQUESTED;
             case RETURNED -> OrderHistoryDisplayStatus.RETURNED;
+            case EXPIRED -> throw new IllegalStateException("만료 주문은 주문내역에 포함될 수 없습니다.");
         };
     }
 

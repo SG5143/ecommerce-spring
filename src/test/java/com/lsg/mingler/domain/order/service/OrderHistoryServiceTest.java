@@ -49,8 +49,9 @@ class OrderHistoryServiceTest {
         recentOrder.changeStatus(com.lsg.mingler.domain.order.entity.OrderStatus.PAID);
         Order oldOrder = order(10L, "ORD-10", LocalDateTime.of(2026, 7, 30, 10, 0));
         List<Order> orders = List.of(recentOrder, oldOrder);
-        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
+        when(orderRepository.findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
                 7L,
+                OrderStatus.EXPIRED,
                 PageRequest.of(0, OrderHistoryService.PAGE_SIZE)
         )).thenReturn(new PageImpl<>(orders, PageRequest.of(0, OrderHistoryService.PAGE_SIZE), 12));
 
@@ -87,8 +88,9 @@ class OrderHistoryServiceTest {
         assertThat(response.orders().getFirst().statusChangedAt())
                 .isEqualTo(LocalDateTime.of(2026, 7, 31, 10, 3));
         assertThat(response.orders().get(1).payment()).isNull();
-        verify(orderRepository).findByMemberIdOrderByCreatedAtDescIdDesc(
+        verify(orderRepository).findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
                 7L,
+                OrderStatus.EXPIRED,
                 PageRequest.of(0, OrderHistoryService.PAGE_SIZE)
         );
     }
@@ -96,8 +98,9 @@ class OrderHistoryServiceTest {
     @Test
     void 성공이나_환불계열_결제가_없으면_가장_최근_결제시도를_반환한다() {
         Order order = order(20L, "ORD-20", LocalDateTime.of(2026, 7, 31, 10, 0));
-        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
+        when(orderRepository.findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
                 7L,
+                OrderStatus.EXPIRED,
                 PageRequest.of(0, OrderHistoryService.PAGE_SIZE)
         )).thenReturn(new PageImpl<>(List.of(order), PageRequest.of(0, OrderHistoryService.PAGE_SIZE), 1));
         when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(20L)))
@@ -128,8 +131,8 @@ class OrderHistoryServiceTest {
                 order(13L, "ORD-FAILED", LocalDateTime.of(2026, 7, 31, 7, 0)),
                 order(14L, "ORD-CANCELLED", LocalDateTime.of(2026, 7, 31, 6, 0))
         );
-        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
-                7L, PageRequest.of(0, OrderHistoryService.PAGE_SIZE)))
+        when(orderRepository.findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
+                7L, OrderStatus.EXPIRED, PageRequest.of(0, OrderHistoryService.PAGE_SIZE)))
                 .thenReturn(new PageImpl<>(orders, PageRequest.of(0, OrderHistoryService.PAGE_SIZE), 5));
         when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(10L, 11L, 12L, 13L, 14L)))
                 .thenReturn(List.of());
@@ -187,8 +190,8 @@ class OrderHistoryServiceTest {
         Order returned = orderWithStatus(22L, "ORD-RETURNED", OrderStatus.RETURNED,
                 "returnedAt", returnedAt);
         List<Order> orders = List.of(shipping, cancelled, returned);
-        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
-                7L, PageRequest.of(0, OrderHistoryService.PAGE_SIZE)))
+        when(orderRepository.findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
+                7L, OrderStatus.EXPIRED, PageRequest.of(0, OrderHistoryService.PAGE_SIZE)))
                 .thenReturn(new PageImpl<>(orders, PageRequest.of(0, OrderHistoryService.PAGE_SIZE), 3));
         when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(20L, 21L, 22L)))
                 .thenReturn(List.of());
@@ -210,7 +213,8 @@ class OrderHistoryServiceTest {
     @Test
     void 범위를_벗어난_페이지는_빈_목록과_페이지정보를_반환한다() {
         PageRequest pageable = PageRequest.of(2, OrderHistoryService.PAGE_SIZE);
-        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(7L, pageable))
+        when(orderRepository.findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
+                7L, OrderStatus.EXPIRED, pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 12));
 
         OrderHistoryResponse response = orderHistoryService.getHistory(7L, 2);
@@ -231,7 +235,8 @@ class OrderHistoryServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("페이지 번호는 0 이상이어야 합니다.");
 
-        verify(orderRepository, never()).findByMemberIdOrderByCreatedAtDescIdDesc(
+        verify(orderRepository, never()).findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
+                org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         );
@@ -318,7 +323,8 @@ class OrderHistoryServiceTest {
 
     private void mockSingleOrder(Order order, Payment payment) {
         PageRequest pageable = PageRequest.of(0, OrderHistoryService.PAGE_SIZE);
-        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(7L, pageable))
+        when(orderRepository.findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
+                7L, OrderStatus.EXPIRED, pageable))
                 .thenReturn(new PageImpl<>(List.of(order), pageable, 1));
         when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(order.getId())))
                 .thenReturn(List.of());

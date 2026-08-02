@@ -2,8 +2,11 @@ package com.lsg.mingler.domain.order.dao;
 
 import com.lsg.mingler.domain.order.entity.Order;
 import com.lsg.mingler.domain.order.entity.OrderStatus;
+import com.lsg.mingler.domain.payment.entity.PaymentStatus;
 import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,7 +20,33 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     /**
      * 회원의 주문을 최신 생성순으로 페이지 조회한다.
      */
-    Page<Order> findByMemberIdOrderByCreatedAtDescIdDesc(Long memberId, Pageable pageable);
+    Page<Order> findByMemberIdAndStatusNotOrderByCreatedAtDescIdDesc(
+            Long memberId, OrderStatus excludedStatus, Pageable pageable);
+
+    /** 결제 기한이 지났고 활성·유효 결제가 없는 결제 대기 주문 ID를 오래된 순서로 조회한다. */
+    @Query("""
+            SELECT o.id
+            FROM Order o
+            WHERE o.status = :orderStatus
+              AND o.createdAt < :orderCutoff
+              AND NOT EXISTS (
+                  SELECT p.id
+                  FROM Payment p
+                  WHERE p.orderId = o.id
+                    AND (
+                        p.status IN :blockingStatuses
+                        OR (p.status = :pendingStatus AND p.createdAt >= :pendingCutoff)
+                    )
+              )
+            ORDER BY o.createdAt ASC, o.id ASC
+            """)
+    List<Long> findExpirationCandidateIds(
+            @Param("orderStatus") OrderStatus orderStatus,
+            @Param("orderCutoff") LocalDateTime orderCutoff,
+            @Param("pendingStatus") PaymentStatus pendingStatus,
+            @Param("pendingCutoff") LocalDateTime pendingCutoff,
+            @Param("blockingStatuses") Collection<PaymentStatus> blockingStatuses,
+            Pageable pageable);
 
     /**
      * 동일한 주문번호를 사용하는 주문이 존재하는지 확인한다.

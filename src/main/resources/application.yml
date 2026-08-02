@@ -69,3 +69,12 @@ payment:
     preparation-ttl: ${PAYMENT_PREPARATION_TTL:PT30M}
     # 재조정 작업 한 번에 처리할 최대 결제 건수입니다.
     batch-size: ${PAYMENT_RECONCILE_BATCH_SIZE:100}
+
+order:
+  expiration:
+    # 주문 생성 후 결제를 시작하거나 완료할 수 있는 최대 시간입니다.
+    ttl: ${ORDER_EXPIRATION_TTL:PT30M}
+    # 오래된 결제 대기 주문을 정리하는 주기입니다.
+    fixed-delay: ${ORDER_EXPIRATION_FIXED_DELAY:PT1M}
+    # 한 번에 만료 처리할 최대 주문 건수입니다.
+    batch-size: ${ORDER_EXPIRATION_BATCH_SIZE:100}

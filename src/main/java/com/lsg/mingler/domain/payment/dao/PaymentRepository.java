@@ -20,6 +20,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
      */
     List<Payment> findAllByOrderIdInOrderByCreatedAtDescIdDesc(Collection<Long> orderIds);
 
+    /** 주문 한 건의 모든 결제 시도를 최신순으로 조회한다. */
+    List<Payment> findAllByOrderIdOrderByCreatedAtDescIdDesc(Long orderId);
+
     /**
      * 회원 범위에서 멱등성 키가 일치하는 기존 결제를 조회한다.
      *
