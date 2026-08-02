@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 결제 재조정 스케줄러의 반복 대상 조회 SQL 콘솔 로그에서 제외 -->
+    <turboFilter class="com.lsg.mingler.global.logging.PaymentReconciliationSqlFilter"/>
+
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+</configuration>

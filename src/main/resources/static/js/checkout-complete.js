@@ -49,6 +49,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const order = complete.order;
     const payment = complete.payment;
+    const orderHistoryLink = document.getElementById('complete-order-history-link');
+    if (orderHistoryLink && window.getAccessToken()) {
+        orderHistoryLink.hidden = false;
+    }
     setText('complete-order-number', payment.orderNumber || order.orderNumber);
     setText('complete-payment-number', payment.paymentNumber);
     setText('complete-payment-status', payment.paymentStatus);

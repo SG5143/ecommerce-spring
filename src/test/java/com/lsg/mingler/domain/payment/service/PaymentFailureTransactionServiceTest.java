@@ -180,6 +180,7 @@ class PaymentFailureTransactionServiceTest {
     private Payment successfulPayment(int amount) {
         Payment payment = payment(amount);
         payment.recordTransactionKey("VPG-EXISTING");
+        payment.changeStatus(PaymentStatus.PROCESSING);
         payment.changeStatus(PaymentStatus.SUCCESS);
         return payment;
     }
@@ -187,6 +188,7 @@ class PaymentFailureTransactionServiceTest {
     private Payment failedPayment(int amount, String failureCode) {
         Payment payment = payment(amount);
         payment.recordFailure(failureCode, "기존 실패");
+        payment.changeStatus(PaymentStatus.PROCESSING);
         payment.changeStatus(PaymentStatus.FAILED);
         return payment;
     }

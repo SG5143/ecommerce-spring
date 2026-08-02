@@ -478,6 +478,7 @@ class PaymentTransactionServiceTest {
                 .build();
         ReflectionTestUtils.setField(payment, "id", id);
         payment.recordTransactionKey("VPG-1");
+        payment.changeStatus(PaymentStatus.PROCESSING);
         payment.changeStatus(PaymentStatus.SUCCESS);
         return payment;
     }
@@ -493,6 +494,7 @@ class PaymentTransactionServiceTest {
                 .amount(20_000)
                 .build();
         payment.recordFailure(failureCode, "결제 실패");
+        payment.changeStatus(PaymentStatus.PROCESSING);
         payment.changeStatus(PaymentStatus.FAILED);
         return payment;
     }

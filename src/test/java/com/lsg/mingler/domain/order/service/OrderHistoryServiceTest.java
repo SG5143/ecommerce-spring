@@ -1,0 +1,211 @@
+package com.lsg.mingler.domain.order.service;
+
+import com.lsg.mingler.domain.order.dao.OrderItemRepository;
+import com.lsg.mingler.domain.order.dao.OrderRepository;
+import com.lsg.mingler.domain.order.dto.OrderHistoryResponse;
+import com.lsg.mingler.domain.order.entity.Order;
+import com.lsg.mingler.domain.order.entity.OrderItem;
+import com.lsg.mingler.domain.payment.dao.PaymentRepository;
+import com.lsg.mingler.domain.payment.entity.Payment;
+import com.lsg.mingler.domain.payment.entity.PaymentStatus;
+import com.lsg.mingler.global.error.AuthenticationException;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class OrderHistoryServiceTest {
+
+    @Mock
+    private OrderRepository orderRepository;
+
+    @Mock
+    private OrderItemRepository orderItemRepository;
+
+    @Mock
+    private PaymentRepository paymentRepository;
+
+    @InjectMocks
+    private OrderHistoryService orderHistoryService;
+
+    @Test
+    void 회원의_주문을_최신순으로_상품과_대표결제까지_반환한다() {
+        Order recentOrder = order(20L, "ORD-20", LocalDateTime.of(2026, 7, 31, 10, 0));
+        recentOrder.changeStatus(com.lsg.mingler.domain.order.entity.OrderStatus.PAID);
+        Order oldOrder = order(10L, "ORD-10", LocalDateTime.of(2026, 7, 30, 10, 0));
+        List<Order> orders = List.of(recentOrder, oldOrder);
+        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
+                7L,
+                PageRequest.of(0, OrderHistoryService.PAGE_SIZE)
+        )).thenReturn(new PageImpl<>(orders, PageRequest.of(0, OrderHistoryService.PAGE_SIZE), 12));
+
+        OrderItem item = orderItem(100L, 20L);
+        when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(20L, 10L)))
+                .thenReturn(List.of(item));
+
+        Payment failed = payment(202L, 20L, "PAY-FAILED", PaymentStatus.FAILED,
+                LocalDateTime.of(2026, 7, 31, 10, 5));
+        Payment success = payment(201L, 20L, "PAY-SUCCESS", PaymentStatus.SUCCESS,
+                LocalDateTime.of(2026, 7, 31, 10, 3));
+        when(paymentRepository.findAllByOrderIdInOrderByCreatedAtDescIdDesc(List.of(20L, 10L)))
+                .thenReturn(List.of(failed, success));
+
+        OrderHistoryResponse response = orderHistoryService.getHistory(7L, 0);
+
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(10);
+        assertThat(response.totalElements()).isEqualTo(12);
+        assertThat(response.totalPages()).isEqualTo(2);
+        assertThat(response.hasPrevious()).isFalse();
+        assertThat(response.hasNext()).isTrue();
+        assertThat(response.orders()).extracting(OrderHistoryResponse.OrderSummary::orderNumber)
+                .containsExactly("ORD-20", "ORD-10");
+        assertThat(response.orders().getFirst().items()).singleElement().satisfies(responseItem -> {
+            assertThat(responseItem.orderItemId()).isEqualTo(100L);
+            assertThat(responseItem.productName()).isEqualTo("테스트 상품");
+            assertThat(responseItem.quantity()).isEqualTo(2);
+        });
+        assertThat(response.orders().getFirst().payment().paymentNumber()).isEqualTo("PAY-SUCCESS");
+        assertThat(response.orders().getFirst().payment().paymentStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(response.orders().get(1).payment()).isNull();
+        verify(orderRepository).findByMemberIdOrderByCreatedAtDescIdDesc(
+                7L,
+                PageRequest.of(0, OrderHistoryService.PAGE_SIZE)
+        );
+    }
+
+    @Test
+    void 성공이나_환불계열_결제가_없으면_가장_최근_결제시도를_반환한다() {
+        Order order = order(20L, "ORD-20", LocalDateTime.of(2026, 7, 31, 10, 0));
+        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(
+                7L,
+                PageRequest.of(0, OrderHistoryService.PAGE_SIZE)
+        )).thenReturn(new PageImpl<>(List.of(order), PageRequest.of(0, OrderHistoryService.PAGE_SIZE), 1));
+        when(orderItemRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(List.of(20L)))
+                .thenReturn(List.of());
+        Payment recentFailed = payment(202L, 20L, "PAY-FAILED", PaymentStatus.FAILED,
+                LocalDateTime.of(2026, 7, 31, 10, 5));
+        Payment oldCancelled = payment(201L, 20L, "PAY-CANCELLED", PaymentStatus.CANCELLED,
+                LocalDateTime.of(2026, 7, 31, 10, 3));
+        when(paymentRepository.findAllByOrderIdInOrderByCreatedAtDescIdDesc(List.of(20L)))
+                .thenReturn(List.of(recentFailed, oldCancelled));
+
+        OrderHistoryResponse response = orderHistoryService.getHistory(7L, 0);
+
+        assertThat(response.orders().getFirst().payment().paymentNumber()).isEqualTo("PAY-FAILED");
+        assertThat(response.orders().getFirst().payment().paymentStatus()).isEqualTo(PaymentStatus.FAILED);
+    }
+
+    @Test
+    void 범위를_벗어난_페이지는_빈_목록과_페이지정보를_반환한다() {
+        PageRequest pageable = PageRequest.of(2, OrderHistoryService.PAGE_SIZE);
+        when(orderRepository.findByMemberIdOrderByCreatedAtDescIdDesc(7L, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 12));
+
+        OrderHistoryResponse response = orderHistoryService.getHistory(7L, 2);
+
+        assertThat(response.orders()).isEmpty();
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.totalElements()).isEqualTo(12);
+        assertThat(response.totalPages()).isEqualTo(2);
+        assertThat(response.hasPrevious()).isTrue();
+        assertThat(response.hasNext()).isFalse();
+        verify(orderItemRepository, never()).findAllByOrderIdInOrderByOrderIdAscIdAsc(org.mockito.ArgumentMatchers.any());
+        verify(paymentRepository, never()).findAllByOrderIdInOrderByCreatedAtDescIdDesc(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 음수_페이지는_거부한다() {
+        assertThatThrownBy(() -> orderHistoryService.getHistory(7L, -1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("페이지 번호는 0 이상이어야 합니다.");
+
+        verify(orderRepository, never()).findByMemberIdOrderByCreatedAtDescIdDesc(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void 회원인증이_없으면_주문내역을_조회할_수_없다() {
+        assertThatThrownBy(() -> orderHistoryService.getHistory(null, 0))
+                .isInstanceOf(AuthenticationException.class)
+                .hasMessage("인증이 필요합니다.");
+    }
+
+    private Order order(Long id, String orderNumber, LocalDateTime createdAt) {
+        Order order = Order.builder()
+                .orderNumber(orderNumber)
+                .memberId(7L)
+                .ordererName("홍길동")
+                .ordererPhone("01012345678")
+                .receiverName("홍길동")
+                .receiverPhone("01012345678")
+                .zipcode("12345")
+                .address("서울시")
+                .merchandiseAmount(20_000)
+                .discountAmount(1_000)
+                .shippingFee(3_000)
+                .totalAmount(22_000)
+                .build();
+        ReflectionTestUtils.setField(order, "id", id);
+        ReflectionTestUtils.setField(order, "createdAt", createdAt);
+        return order;
+    }
+
+    private OrderItem orderItem(Long id, Long orderId) {
+        OrderItem item = OrderItem.builder()
+                .orderId(orderId)
+                .productId(30L)
+                .productOptionId(40L)
+                .productName("테스트 상품")
+                .categoryId(50L)
+                .categoryName("카테고리")
+                .optionName("검정")
+                .thumbnailUrl("/images/product.jpg")
+                .unitPrice(10_000)
+                .quantity(2)
+                .lineAmount(20_000)
+                .build();
+        ReflectionTestUtils.setField(item, "id", id);
+        return item;
+    }
+
+    private Payment payment(
+            Long id,
+            Long orderId,
+            String paymentNumber,
+            PaymentStatus status,
+            LocalDateTime createdAt
+    ) {
+        Payment payment = Payment.builder()
+                .paymentNumber(paymentNumber)
+                .orderId(orderId)
+                .memberId(7L)
+                .idempotencyKey("key-" + id)
+                .pgProvider("VIRTUAL")
+                .paymentMethod("CARD")
+                .amount(22_000)
+                .build();
+        ReflectionTestUtils.setField(payment, "id", id);
+        ReflectionTestUtils.setField(payment, "status", status);
+        ReflectionTestUtils.setField(payment, "createdAt", createdAt);
+        if (status == PaymentStatus.SUCCESS) {
+            ReflectionTestUtils.setField(payment, "approvedAt", createdAt);
+        }
+        return payment;
+    }
+}

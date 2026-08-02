@@ -60,6 +60,7 @@ public class PaymentFailureTransactionService {
                 .amount(command.amount())
                 .build();
         payment.recordFailure(failure.getFailureCode(), failure.getMessage());
+        payment.changeStatus(PaymentStatus.PROCESSING);
         payment.changeStatus(PaymentStatus.FAILED);
         paymentRepository.saveAndFlush(payment);
         return Optional.empty();

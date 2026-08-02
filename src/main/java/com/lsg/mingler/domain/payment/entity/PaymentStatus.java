@@ -8,6 +8,7 @@ import java.util.Set;
  */
 public enum PaymentStatus {
     PENDING,        // 결제 승인 전 상태
+    PROCESSING,     // 재고 예약 후 PG 승인 결과 확인 중
     SUCCESS,        // 결제 승인 완료
     FAILED,         // 결제 실패
     CANCELLED,      // 결제 취소 완료
@@ -35,7 +36,8 @@ public enum PaymentStatus {
 
     private Set<PaymentStatus> allowedTransitions() {
         return switch (this) {
-            case PENDING -> EnumSet.of(SUCCESS, FAILED, CANCELLED);
+            case PENDING -> EnumSet.of(PROCESSING, CANCELLED);
+            case PROCESSING -> EnumSet.of(SUCCESS, FAILED, CANCELLED);
             case SUCCESS -> EnumSet.of(REFUND_PENDING);
             case REFUND_PENDING -> EnumSet.of(REFUNDED, REFUND_FAILED);
             case REFUND_FAILED -> EnumSet.of(REFUND_PENDING);

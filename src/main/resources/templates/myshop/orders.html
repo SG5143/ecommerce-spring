@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Mingler | 주문내역</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/orders.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="myshop-page">
+    <div class="myshop-layout">
+        <div th:replace="~{layout/myshop-nav :: nav('orders')}"></div>
+
+        <section class="myshop-content">
+            <div class="myshop-content-head">
+                <h1 class="myshop-title">주문내역</h1>
+            </div>
+
+            <div id="order-history-loading" class="order-history-state" role="status">
+                주문내역을 불러오고 있습니다.
+            </div>
+
+            <div id="order-history-error" class="order-history-state order-history-error" role="alert" hidden>
+                <p id="order-history-error-message">주문내역을 불러오지 못했습니다.</p>
+                <button type="button" id="order-history-retry">다시 시도</button>
+            </div>
+
+            <div id="order-history-empty" class="order-history-state" hidden>
+                <strong>아직 주문내역이 없습니다.</strong>
+                <p>마음에 드는 상품을 둘러보고 첫 주문을 시작해보세요.</p>
+                <a th:href="@{/}">쇼핑 계속하기</a>
+            </div>
+
+            <div id="order-history-list" class="order-history-list" aria-live="polite"></div>
+
+            <nav id="order-history-pagination" class="order-history-pagination"
+                 aria-label="주문내역 페이지" hidden>
+                <button type="button" id="order-history-previous" aria-label="이전 페이지">이전</button>
+                <div id="order-history-page-numbers" class="order-history-page-numbers"></div>
+                <button type="button" id="order-history-next" aria-label="다음 페이지">다음</button>
+            </nav>
+        </section>
+    </div>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>

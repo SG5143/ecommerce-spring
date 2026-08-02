@@ -66,6 +66,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(new ErrorResponse(e.getMessage()));
     }
 
+    @ExceptionHandler(PaymentGatewayDeclinedException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentGatewayDeclined(PaymentGatewayDeclinedException e) {
+        log.info("PG 결제 승인 거절 (402): code={}, message={}", e.getFailureCode(), e.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(new ErrorResponse(e.getMessage()));
+    }
+
     /**
      * 상태코드를 지정해 던진 예외(카테고리 미존재 404 등)는 그 상태코드를 그대로 응답.
      * catch-all 이 500 으로 덮어쓰지 않도록 별도 처리

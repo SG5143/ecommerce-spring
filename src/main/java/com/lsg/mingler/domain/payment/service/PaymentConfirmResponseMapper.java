@@ -18,7 +18,10 @@ final class PaymentConfirmResponseMapper {
                 payment.getAmount(),
                 payment.getPaymentMethod(),
                 payment.getPgProvider(),
+                payment.getPgOrderId(),
                 payment.getPgTransactionKey(),
-                payment.getApprovedAt());
+                payment.getApprovedAt(),
+                payment.getFailureCode(),
+                payment.getFailureReason());
     }
 }

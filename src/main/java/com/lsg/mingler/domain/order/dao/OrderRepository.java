@@ -1,14 +1,23 @@
 package com.lsg.mingler.domain.order.dao;
 
 import com.lsg.mingler.domain.order.entity.Order;
+import com.lsg.mingler.domain.order.entity.OrderStatus;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
+
+    /**
+     * 회원의 주문을 최신 생성순으로 페이지 조회한다.
+     */
+    Page<Order> findByMemberIdOrderByCreatedAtDescIdDesc(Long memberId, Pageable pageable);
 
     /**
      * 동일한 주문번호를 사용하는 주문이 존재하는지 확인한다.
@@ -27,6 +36,23 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     boolean existsByGuestTokenHash(String guestTokenHash);
 
     /**
+     * 회원의 집계 대상 주문에 대해 할인과 배송비가 반영된 최종 결제금액을 합산한다.
+     *
+     * @param memberId 조회할 회원 식별자
+     * @param statuses 총 구매 금액에 포함할 주문 상태
+     * @return 대상 주문이 없으면 0, 있으면 최종 결제금액 합계
+     */
+    @Query("""
+            SELECT COALESCE(SUM(o.totalAmount), 0L)
+            FROM Order o
+            WHERE o.memberId = :memberId
+              AND o.status IN :statuses
+            """)
+    long sumTotalAmountByMemberIdAndStatuses(
+            @Param("memberId") Long memberId,
+            @Param("statuses") Collection<OrderStatus> statuses);
+
+    /**
      * 결제 처리 중 동일 주문의 동시 변경을 막기 위해 주문번호로 주문을 조회하고
      * 비관적 쓰기 잠금을 획득한다.
      *
@@ -36,4 +62,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.orderNumber = :orderNumber")
     Optional<Order> findByOrderNumberForUpdate(@Param("orderNumber") String orderNumber);
+
+    /**
+     * 결제 상태 전이와 재고 처리 중 동일 주문의 동시 변경을 막기 위해 식별자로 주문을 조회하고
+     * 비관적 쓰기 잠금을 획득한다. 잠금은 호출한 트랜잭션이 종료될 때까지 유지된다.
+     *
+     * @param orderId 조회할 주문 식별자
+     * @return 주문이 존재하면 잠금이 적용된 주문, 존재하지 않으면 빈 값
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :orderId")
+    Optional<Order> findByIdForUpdate(@Param("orderId") Long orderId);
 }

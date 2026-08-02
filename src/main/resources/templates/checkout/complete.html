@@ -35,7 +35,7 @@
                 <div><dt>주문상태</dt><dd id="complete-order-status"></dd></div>
                 <div><dt>결제수단</dt><dd id="complete-payment-method"></dd></div>
                 <div><dt>승인일시</dt><dd id="complete-approved-at"></dd></div>
-                <div><dt>가상 PG 거래키</dt><dd id="complete-pg-key"></dd></div>
+                <div><dt>PG 거래키</dt><dd id="complete-pg-key"></dd></div>
                 <div class="checkout-complete-amount"><dt>결제금액</dt><dd id="complete-amount"></dd></div>
             </dl>
         </section>
@@ -46,6 +46,8 @@
         </section>
 
         <div class="checkout-complete-actions">
+<!--            <a th:href="@{/myshop/orders}" id="complete-order-history-link"-->
+<!--               class="checkout-primary-link" data-complete-leave hidden>주문내역 확인</a>-->
             <a th:href="@{/}" class="checkout-primary-link" data-complete-leave>쇼핑 계속하기</a>
             <a th:href="@{/cart}" class="checkout-outline-link" data-complete-leave>장바구니 확인</a>
         </div>

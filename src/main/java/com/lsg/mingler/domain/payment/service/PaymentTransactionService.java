@@ -80,6 +80,7 @@ public class PaymentTransactionService {
                 .amount(command.amount())
                 .build();
         payment.recordTransactionKey(generateTransactionKey());
+        payment.changeStatus(PaymentStatus.PROCESSING);
         payment.changeStatus(PaymentStatus.SUCCESS);
         order.changeStatus(OrderStatus.PAID);
         paymentRepository.save(payment);

@@ -11,12 +11,15 @@ import com.lsg.mingler.domain.member.dto.MemberUpdateRequest;
 import com.lsg.mingler.domain.member.dto.MemberSummaryResponse;
 import com.lsg.mingler.domain.member.entity.Member;
 import com.lsg.mingler.domain.member.entity.MemberAddress;
+import com.lsg.mingler.domain.order.dao.OrderRepository;
+import com.lsg.mingler.domain.order.entity.OrderStatus;
 import com.lsg.mingler.global.error.AuthenticationException;
 import com.lsg.mingler.global.error.DuplicateException;
 import com.lsg.mingler.global.validation.InputValidator;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,9 +30,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
     private static final int MINIMUM_AGE = 14;
+    private static final Set<OrderStatus> PURCHASE_TOTAL_STATUSES = Set.of(
+            OrderStatus.PAID,
+            OrderStatus.PREPARING,
+            OrderStatus.SHIPPING,
+            OrderStatus.DELIVERED,
+            OrderStatus.RETURN_REQUESTED
+    );
 
     private final MemberRepository memberRepository;
     private final MemberAddressRepository memberAddressRepository;
+    private final OrderRepository orderRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
 
@@ -49,17 +60,22 @@ public class MemberService {
 
     /**
      * 마이샵 요약 정보 조회. 유효한 토큰이지만 회원이 없으면 인증 오류로 간주
-     * 총 구매 금액·쿠폰 수는 주문·쿠폰 도메인 미구현이라 0 으로 반환
+     * 총 구매 금액은 결제 완료 이후부터 반품 완료 전까지의 최종 결제금액을 합산
+     * 쿠폰 수는 쿠폰 도메인 미구현이라 0 으로 반환
      */
     @Transactional(readOnly = true)
     public MemberSummaryResponse getSummary(Long memberId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."));
+        long totalPurchaseAmount = orderRepository.sumTotalAmountByMemberIdAndStatuses(
+                memberId,
+                PURCHASE_TOTAL_STATUSES
+        );
 
         return new MemberSummaryResponse(
                 member.getName(),
                 member.getGrade(),
-                0L,
+                totalPurchaseAmount,
                 member.getPointBalance(),
                 0
         );

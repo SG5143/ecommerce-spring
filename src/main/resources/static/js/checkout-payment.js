@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const content = document.getElementById('payment-content');
     const message = document.getElementById('payment-message');
     const confirmButton = document.getElementById('payment-confirm');
+    const providerInputs = document.querySelectorAll('input[name="paymentProvider"]');
 
     if (!pending) {
         if (state.getSelection()) {
@@ -12,6 +13,10 @@ document.addEventListener('DOMContentLoaded', function () {
             sessionStorage.setItem('cartNotice', '결제할 주문 정보가 없습니다. 상품을 다시 선택해주세요.');
             window.location.replace('/cart');
         }
+        return;
+    }
+    if (pending.approvalCallback) {
+        window.location.replace('/checkout/payment/success');
         return;
     }
 
@@ -68,8 +73,123 @@ document.addEventListener('DOMContentLoaded', function () {
                     error.status = response.status;
                     throw error;
                 }
+                data.httpStatus = response.status;
                 return data;
             });
+        });
+    }
+
+    function ownershipHeaders() {
+        const result = {};
+        if (pending.ownerType === 'GUEST') {
+            result['X-Guest-Order-Token'] = pending.guestOrderToken;
+        }
+        return result;
+    }
+
+    function headers() {
+        return Object.assign({
+            'Content-Type': 'application/json',
+            'Idempotency-Key': pending.idempotencyKey
+        }, ownershipHeaders());
+    }
+
+    function setPaymentControlsDisabled(disabled) {
+        confirmButton.disabled = disabled;
+        providerInputs.forEach(function (input) {
+            input.disabled = disabled;
+        });
+    }
+
+    function createVirtualPaymentKey(orderId) {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return 'VIRTUAL-' + window.crypto.randomUUID();
+        }
+        return 'VIRTUAL-' + orderId;
+    }
+
+    function selectedPaymentProvider() {
+        const selected = document.querySelector('input[name="paymentProvider"]:checked');
+        return selected ? selected.value : null;
+    }
+
+    function resetPreparationIfProviderChanged(paymentProvider) {
+        const prepared = pending.preparedPayment;
+        if (!prepared || prepared.paymentProvider === paymentProvider) {
+            return Promise.resolve(true);
+        }
+
+        confirmButton.textContent = '기존 결제 준비를 정리하는 중...';
+        return requestJson(
+            '/api/v1/payments/preparations/' + encodeURIComponent(prepared.orderId) + '/cancel',
+            {
+                method: 'POST',
+                headers: ownershipHeaders()
+            })
+            .then(function () {
+                pending = state.renewPaymentAttempt(pending);
+                return true;
+            })
+            .catch(function (error) {
+                if (error.status === 404) {
+                    pending = state.renewPaymentAttempt(pending);
+                    return true;
+                }
+                if (error.status === 409) {
+                    window.location.replace('/checkout/payment/success');
+                    return false;
+                }
+                throw error;
+            });
+    }
+
+    function preparePayment(paymentProvider) {
+        confirmButton.textContent = '결제를 준비하는 중...';
+        return requestJson('/api/v1/payments/prepare', {
+            method: 'POST',
+            headers: headers(),
+            body: JSON.stringify({
+                orderNumber: order.orderNumber,
+                paymentMethod: 'CARD',
+                paymentProvider: paymentProvider
+            })
+        });
+    }
+
+    function confirmVirtual(prepared) {
+        const callback = {
+            paymentKey: createVirtualPaymentKey(prepared.orderId),
+            orderId: prepared.orderId,
+            amount: prepared.amount
+        };
+        pending = state.setApprovalCallback(pending, callback);
+        return requestJson('/api/v1/payments/confirm', {
+            method: 'POST',
+            headers: headers(),
+            body: JSON.stringify(callback)
+        }).then(function (paymentResult) {
+            if (paymentResult.paymentStatus === 'SUCCESS') {
+                state.completePayment(pending, paymentResult);
+                window.location.href = '/checkout/complete';
+                return;
+            }
+            window.location.href = '/checkout/payment/success';
+        });
+    }
+
+    function openTossWindow(prepared) {
+        if (typeof window.TossPayments !== 'function') {
+            throw new Error('토스페이먼츠 결제창을 불러오지 못했습니다.');
+        }
+        const tossPayments = window.TossPayments(prepared.clientKey);
+        const payment = tossPayments.payment({ customerKey: prepared.customerKey });
+        return payment.requestPayment({
+            method: 'CARD',
+            amount: { value: prepared.amount, currency: 'KRW' },
+            orderId: prepared.orderId,
+            orderName: prepared.orderName,
+            successUrl: location.origin + '/checkout/payment/success',
+            failUrl: location.origin + '/checkout/payment/fail'
         });
     }
 
@@ -81,6 +201,10 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('payment-shipping-fee').textContent = formatWon(order.shippingFee);
     document.getElementById('payment-total-amount').textContent = formatWon(order.totalAmount);
     renderItems(order.items);
+    if (pending.notice) {
+        showMessage(pending.notice);
+        pending = state.updatePending(pending, { notice: null });
+    }
     content.hidden = false;
 
     confirmButton.addEventListener('click', function () {
@@ -89,38 +213,40 @@ document.addEventListener('DOMContentLoaded', function () {
             showMessage('비회원 주문 확인 정보가 없어 결제를 계속할 수 없습니다.');
             return;
         }
-
-        const headers = {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': pending.idempotencyKey
-        };
-        if (pending.ownerType === 'GUEST') {
-            headers['X-Guest-Order-Token'] = pending.guestOrderToken;
+        if (pending.approvalCallback) {
+            window.location.replace('/checkout/payment/success');
+            return;
         }
 
-        confirmButton.disabled = true;
-        confirmButton.textContent = '결제를 처리하는 중...';
+        const paymentProvider = selectedPaymentProvider();
+        if (!paymentProvider) {
+            showMessage('결제수단을 선택해주세요.');
+            return;
+        }
+
+        setPaymentControlsDisabled(true);
         showMessage('');
-        requestJson('/api/v1/payments/confirm', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                orderNumber: order.orderNumber,
-                amount: order.totalAmount,
-                paymentMethod: 'CARD'
+        resetPreparationIfProviderChanged(paymentProvider)
+            .then(function (canPrepare) {
+                return canPrepare ? preparePayment(paymentProvider) : null;
             })
-        })
-            .then(function (payment) {
-                state.completePayment(pending, payment);
-                window.location.href = '/checkout/complete';
+            .then(function (prepared) {
+                if (!prepared) {
+                    return;
+                }
+                pending = state.setPreparedPayment(pending, prepared);
+                confirmButton.textContent = '결제를 처리하는 중...';
+                return prepared.paymentProvider === 'TOSS'
+                    ? openTossWindow(prepared)
+                    : confirmVirtual(prepared);
             })
             .catch(function (error) {
-                confirmButton.disabled = false;
-                if (error.status === 402 || error.status === 504) {
+                setPaymentControlsDisabled(false);
+                if (error.status === 402) {
                     pending = state.renewPaymentAttempt(pending);
                     confirmButton.textContent = '새 요청으로 다시 결제하기';
                 } else {
-                    confirmButton.textContent = '같은 요청으로 다시 결제하기';
+                    confirmButton.textContent = '결제하기';
                 }
                 if (error.status === 404) {
                     state.clearPending();
@@ -131,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 showMessage(error.status
                     ? error.message
-                    : '네트워크 오류가 발생했습니다. 같은 요청으로 다시 시도해주세요.');
+                    : (error.message || '네트워크 오류가 발생했습니다. 같은 요청으로 다시 시도해주세요.'));
             });
     });
 });
