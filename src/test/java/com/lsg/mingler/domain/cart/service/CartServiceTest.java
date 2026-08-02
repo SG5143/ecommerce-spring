@@ -147,14 +147,133 @@ class CartServiceTest {
     }
 
     @Test
+    void 수량변경은_전체응답_조회결과를_검증에도_재사용한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product product = product(10L, 10000, 10);
+        ProductOption option = option(20L, 10L, 1000, 10, true);
+        CartItem item = cartItem(100L, 1L, 10L, 20L, 1, 11000);
+        mockUpdateLookup(cart, item, product, option);
+
+        CartResponse response = cartService.updateQuantity(7L, null, 100L, 3);
+
+        assertThat(item.getQuantity()).isEqualTo(3);
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().getFirst().quantity()).isEqualTo(3);
+        assertThat(response.totalQuantity()).isEqualTo(3);
+        assertThat(response.merchandiseTotal()).isEqualTo(33000);
+        verify(cartItemRepository).findAllByCartIdOrderByCreatedAtAscIdAsc(1L);
+        verify(productRepository).findAllById(Set.of(10L));
+        verify(productOptionRepository).findAllById(Set.of(20L));
+        verify(cartItemRepository, never()).findByCartIdAndId(any(), any());
+        verify(productRepository, never()).findById(any());
+        verify(productOptionRepository, never()).findById(any());
+    }
+
+    @Test
+    void 동일수량_변경도_성공하고_전체응답을_반환한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product product = product(10L, 10000, 10);
+        ProductOption option = defaultOption(20L, 10L, 10);
+        CartItem item = cartItem(100L, 1L, 10L, 20L, 2, 10000);
+        mockUpdateLookup(cart, item, product, option);
+
+        CartResponse response = cartService.updateQuantity(7L, null, 100L, 2);
+
+        assertThat(item.getQuantity()).isEqualTo(2);
+        assertThat(response.totalQuantity()).isEqualTo(2);
+        assertThat(response.merchandiseTotal()).isEqualTo(20000);
+    }
+
+    @Test
+    void 수량변경시_판매중단_상품은_거부한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product product = product(10L, 10000, 10);
+        ReflectionTestUtils.setField(product, "status", Product.STATUS_HIDDEN);
+        ProductOption option = defaultOption(20L, 10L, 10);
+        CartItem item = cartItem(100L, 1L, 10L, 20L, 1, 10000);
+        mockUpdateLookup(cart, item, product, option);
+
+        assertThatThrownBy(() -> cartService.updateQuantity(7L, null, 100L, 2))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("판매 중인 상품이 아닙니다");
+
+        assertThat(item.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void 수량변경시_비활성_옵션은_거부한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product product = product(10L, 10000, 10);
+        ProductOption option = option(20L, 10L, 0, 10, false);
+        CartItem item = cartItem(100L, 1L, 10L, 20L, 1, 10000);
+        mockUpdateLookup(cart, item, product, option);
+
+        assertThatThrownBy(() -> cartService.updateQuantity(7L, null, 100L, 2))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("선택할 수 없는 상품 옵션");
+
+        assertThat(item.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void 수량변경시_다른상품의_옵션은_거부한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product product = product(10L, 10000, 10);
+        ProductOption option = defaultOption(20L, 99L, 10);
+        CartItem item = cartItem(100L, 1L, 10L, 20L, 1, 10000);
+        mockUpdateLookup(cart, item, product, option);
+
+        assertThatThrownBy(() -> cartService.updateQuantity(7L, null, 100L, 2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("속하지 않은 옵션");
+
+        assertThat(item.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void 수량변경시_재고를_초과하면_거부한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product product = product(10L, 10000, 2);
+        ProductOption option = defaultOption(20L, 10L, 2);
+        CartItem item = cartItem(100L, 1L, 10L, 20L, 1, 10000);
+        mockUpdateLookup(cart, item, product, option);
+
+        assertThatThrownBy(() -> cartService.updateQuantity(7L, null, 100L, 3))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("재고가 부족합니다");
+
+        assertThat(item.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void 수량변경시_품절된_옵션은_거부한다() {
+        Cart cart = memberCart(1L, 7L);
+        Product product = product(10L, 10000, 0);
+        ProductOption option = defaultOption(20L, 10L, 0);
+        CartItem item = cartItem(100L, 1L, 10L, 20L, 1, 10000);
+        mockUpdateLookup(cart, item, product, option);
+
+        assertThatThrownBy(() -> cartService.updateQuantity(7L, null, 100L, 1))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("품절된 상품");
+
+        assertThat(item.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
     void 다른_장바구니의_항목은_수정할_수_없다() {
         Cart cart = memberCart(1L, 7L);
+        CartItem otherCartItem = cartItem(999L, 2L, 10L, 20L, 1, 10000);
         when(cartRepository.findByMemberIdForUpdate(7L)).thenReturn(Optional.of(cart));
-        when(cartItemRepository.findByCartIdAndId(1L, 999L)).thenReturn(Optional.empty());
+        when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(1L)).thenReturn(List.of());
 
         assertThatThrownBy(() -> cartService.updateQuantity(7L, null, 999L, 2))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("장바구니 상품을 찾을 수 없습니다");
+
+        assertThat(otherCartItem.getCartId()).isEqualTo(2L);
+        verify(cartItemRepository, never()).findByCartIdAndId(any(), any());
+        verifyNoInteractions(productRepository, productOptionRepository);
     }
 
     @Test
@@ -423,5 +542,13 @@ class CartServiceTest {
                 .build();
         ReflectionTestUtils.setField(item, "id", id);
         return item;
+    }
+
+    private void mockUpdateLookup(Cart cart, CartItem item, Product product, ProductOption option) {
+        when(cartRepository.findByMemberIdForUpdate(cart.getMemberId())).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(cart.getId()))
+                .thenReturn(List.of(item));
+        when(productRepository.findAllById(Set.of(product.getId()))).thenReturn(List.of(product));
+        when(productOptionRepository.findAllById(Set.of(option.getId()))).thenReturn(List.of(option));
     }
 }

@@ -20,8 +20,10 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -140,13 +142,25 @@ public class CartService {
     public CartResponse updateQuantity(Long memberId, String guestTokenHash, Long itemId, Integer quantity) {
         validateQuantity(quantity);
         Cart cart = requireCart(memberId, guestTokenHash);
-        CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), itemId)
+        // 전체 응답에 필요한 항목을 먼저 조회하고 같은 목록에서 수정 대상을 찾아 단건 중복 조회를 피한다.
+        List<CartItem> cartItems = cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(cart.getId());
+        CartItem item = cartItems.stream()
+                .filter(cartItem -> cartItem.getId().equals(itemId))
+                .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("장바구니 상품을 찾을 수 없습니다."));
-        ValidatedVariant variant = validateVariant(new VariantKey(item.getProductId(), item.getProductOptionId()), quantity);
-        validateQuantityAgainstStock(quantity, variant.stockQuantity());
+
+        Map<Long, Product> productsById = loadProductsById(cartItems);
+        Map<Long, ProductOption> optionsById = loadOptionsById(cartItems);
+        VariantKey key = new VariantKey(item.getProductId(), item.getProductOptionId());
+        Product product = Optional.ofNullable(productsById.get(key.productId()))
+                .orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다."));
+        ProductOption option = Optional.ofNullable(optionsById.get(key.optionId()))
+                .orElseThrow(() -> new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다."));
+        validateVariant(key, quantity, product, option);
+
         item.changeQuantity(quantity);
         extendGuestExpiration(cart);
-        return toResponse(cart);
+        return toResponse(cartItems, productsById, optionsById);
     }
 
     /**
@@ -285,15 +299,22 @@ public class CartService {
     private ValidatedVariant validateVariant(VariantKey key, int requestedQuantity) {
         Product product = productRepository.findById(key.productId())
                 .orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다."));
-        if (!product.isOnSale()) {
-            throw new ConflictException("현재 판매 중인 상품이 아닙니다.");
-        }
-
         if (key.optionId() == null) {
             throw new IllegalArgumentException("상품 옵션을 선택해주세요.");
         }
         ProductOption option = productOptionRepository.findById(key.optionId())
                 .orElseThrow(() -> new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다."));
+
+        return validateVariant(key, requestedQuantity, product, option);
+    }
+
+    /** 이미 조회한 상품·옵션의 판매 가능 상태와 재고를 검증한다. */
+    private ValidatedVariant validateVariant(
+            VariantKey key, int requestedQuantity, Product product, ProductOption option) {
+        if (!product.isOnSale()) {
+            throw new ConflictException("현재 판매 중인 상품이 아닙니다.");
+        }
+
         int currentUnitPrice = product.getDisplayPrice();
         if (!product.getId().equals(option.getProductId())) {
             throw new IllegalArgumentException("상품에 속하지 않은 옵션입니다.");
@@ -415,22 +436,45 @@ public class CartService {
             return CartResponse.empty();
         }
 
-        // 응답 변환 중 항목별 조회가 발생하지 않도록 연관 상품과 옵션을 한 번에 조회한다.
-        Set<Long> productIds = new LinkedHashSet<>();
-        Set<Long> optionIds = new LinkedHashSet<>();
-        for (CartItem item : cartItems) {
-            productIds.add(item.getProductId());
-            if (item.getProductOptionId() != null) {
-                optionIds.add(item.getProductOptionId());
-            }
-        }
+        return toResponse(cartItems, loadProductsById(cartItems), loadOptionsById(cartItems));
+    }
 
+    /** 장바구니 항목에 필요한 상품을 중복 없이 일괄 조회해 ID Map으로 반환한다. */
+    private Map<Long, Product> loadProductsById(List<CartItem> cartItems) {
+        Set<Long> productIds = cartItems.stream()
+                .map(CartItem::getProductId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<Long, Product> productsById = new LinkedHashMap<>();
-        productRepository.findAllById(productIds).forEach(product -> productsById.put(product.getId(), product));
+        if (!productIds.isEmpty()) {
+            productRepository.findAllById(productIds)
+                    .forEach(product -> productsById.put(product.getId(), product));
+        }
+        return productsById;
+    }
+
+    /** 장바구니 항목에 필요한 옵션을 중복 없이 일괄 조회해 ID Map으로 반환한다. */
+    private Map<Long, ProductOption> loadOptionsById(List<CartItem> cartItems) {
+        Set<Long> optionIds = cartItems.stream()
+                .map(CartItem::getProductOptionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<Long, ProductOption> optionsById = new LinkedHashMap<>();
         if (!optionIds.isEmpty()) {
-            productOptionRepository.findAllById(optionIds).forEach(option -> optionsById.put(option.getId(), option));
+            productOptionRepository.findAllById(optionIds)
+                    .forEach(option -> optionsById.put(option.getId(), option));
         }
+        return optionsById;
+    }
+
+    /** 이미 조회한 항목·상품·옵션으로 추가 DB 조회 없이 전체 장바구니 응답을 만든다. */
+    private CartResponse toResponse(
+            List<CartItem> cartItems,
+            Map<Long, Product> productsById,
+            Map<Long, ProductOption> optionsById) {
+        if (cartItems.isEmpty()) {
+            return CartResponse.empty();
+        }
+
         List<CartResponse.Item> items = cartItems.stream()
                 .map(item -> toResponseItem(item,
                         productsById.get(item.getProductId()),
