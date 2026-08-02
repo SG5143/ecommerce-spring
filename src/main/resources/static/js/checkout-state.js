@@ -27,13 +27,66 @@
         })));
     }
 
+    function normalizeDirectItems(items) {
+        if (!Array.isArray(items)) {
+            return [];
+        }
+        const variants = new Set();
+        const normalized = [];
+        for (const item of items) {
+            const productId = Number(item && item.productId);
+            const optionId = Number(item && item.optionId);
+            const quantity = Number(item && item.quantity);
+            const unitPrice = Number(item && item.unitPrice);
+            const variantKey = productId + ':' + optionId;
+            if (!Number.isSafeInteger(productId) || productId <= 0
+                || !Number.isSafeInteger(optionId) || optionId <= 0
+                || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99
+                || !Number.isSafeInteger(unitPrice) || unitPrice < 0
+                || variants.has(variantKey)) {
+                return [];
+            }
+            variants.add(variantKey);
+            normalized.push({
+                productId: productId,
+                optionId: optionId,
+                quantity: quantity,
+                productName: String(item.productName || ''),
+                optionName: item.optionName ? String(item.optionName) : null,
+                thumbnailUrl: item.thumbnailUrl ? String(item.thumbnailUrl) : null,
+                unitPrice: unitPrice,
+                lineTotal: unitPrice * quantity,
+                available: true
+            });
+        }
+        return normalized;
+    }
+
+    function normalizeProductReturnUrl(returnUrl) {
+        return typeof returnUrl === 'string' && /^\/products\/\d+$/.test(returnUrl)
+            ? returnUrl
+            : '/';
+    }
+
     function getSelection() {
         const state = read(SELECTION_KEY);
         if (!state) {
             return null;
         }
+        if (state.source === 'DIRECT') {
+            const directItems = normalizeDirectItems(state.directItems);
+            return directItems.length > 0 ? {
+                source: 'DIRECT',
+                directItems: directItems,
+                returnUrl: normalizeProductReturnUrl(state.returnUrl)
+            } : null;
+        }
         const cartItemIds = normalizeItemIds(state.cartItemIds);
-        return cartItemIds.length > 0 ? { cartItemIds: cartItemIds } : null;
+        return cartItemIds.length > 0 ? {
+            source: 'CART',
+            cartItemIds: cartItemIds,
+            returnUrl: '/cart'
+        } : null;
     }
 
     function setSelection(itemIds) {
@@ -42,7 +95,26 @@
             sessionStorage.removeItem(SELECTION_KEY);
             return null;
         }
-        return write(SELECTION_KEY, { cartItemIds: cartItemIds });
+        return write(SELECTION_KEY, { source: 'CART', cartItemIds: cartItemIds, returnUrl: '/cart' });
+    }
+
+    function setDirectSelection(items, returnUrl) {
+        const directItems = normalizeDirectItems(items);
+        if (directItems.length === 0) {
+            sessionStorage.removeItem(SELECTION_KEY);
+            return null;
+        }
+        return write(SELECTION_KEY, {
+            source: 'DIRECT',
+            directItems: directItems,
+            returnUrl: normalizeProductReturnUrl(returnUrl)
+        });
+    }
+
+    function getReturnUrl(state) {
+        return state && state.source === 'DIRECT'
+            ? normalizeProductReturnUrl(state.returnUrl)
+            : '/cart';
     }
 
     function createIdempotencyKey() {
@@ -77,11 +149,14 @@
         }
         const order = Object.assign({}, orderResponse);
         delete order.guestOrderToken;
+        const selection = getSelection();
         const state = {
             ownerType: ownerType,
             order: order,
             guestOrderToken: ownerType === 'GUEST' ? orderResponse.guestOrderToken : null,
-            idempotencyKey: createIdempotencyKey()
+            idempotencyKey: createIdempotencyKey(),
+            source: selection ? selection.source : 'CART',
+            returnUrl: getReturnUrl(selection)
         };
         sessionStorage.removeItem(COMPLETE_KEY);
         return write(PENDING_KEY, state);
@@ -148,6 +223,9 @@
     window.checkoutState = {
         getSelection: getSelection,
         setSelection: setSelection,
+        setCartSelection: setSelection,
+        setDirectSelection: setDirectSelection,
+        getReturnUrl: getReturnUrl,
         clearSelection: function () { sessionStorage.removeItem(SELECTION_KEY); },
         getPending: getPending,
         setPending: setPending,

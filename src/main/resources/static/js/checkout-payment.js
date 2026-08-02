@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const content = document.getElementById('payment-content');
     const message = document.getElementById('payment-message');
     const confirmButton = document.getElementById('payment-confirm');
+    const returnLink = document.getElementById('payment-return-link');
     const providerInputs = document.querySelectorAll('input[name="paymentProvider"]');
 
     if (!pending) {
@@ -19,6 +20,11 @@ document.addEventListener('DOMContentLoaded', function () {
         window.location.replace('/checkout/payment/success');
         return;
     }
+
+    returnLink.href = state.getReturnUrl(pending);
+    returnLink.textContent = pending.source === 'DIRECT'
+        ? '결제하지 않고 상품 상세로 이동'
+        : '결제하지 않고 장바구니로 이동';
 
     function formatWon(amount) {
         return '₩' + Number(amount || 0).toLocaleString('ko-KR');

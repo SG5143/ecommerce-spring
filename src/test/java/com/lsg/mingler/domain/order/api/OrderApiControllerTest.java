@@ -1,7 +1,10 @@
 package com.lsg.mingler.domain.order.api;
 
 import com.lsg.mingler.domain.cart.service.GuestCartTokenManager;
+import com.lsg.mingler.domain.order.dto.OrderCreateRequest;
+import com.lsg.mingler.domain.order.dto.OrderCreateResponse;
 import com.lsg.mingler.domain.order.dto.OrderHistoryResponse;
+import com.lsg.mingler.domain.order.entity.OrderStatus;
 import com.lsg.mingler.domain.order.service.OrderHistoryService;
 import com.lsg.mingler.domain.order.service.OrderService;
 import com.lsg.mingler.global.error.GlobalExceptionHandler;
@@ -68,5 +71,27 @@ class OrderApiControllerTest {
                 .andExpect(content().json("""
                         {"message":"페이지 번호는 0 이상이어야 합니다."}
                         """));
+    }
+
+    @Test
+    void 비회원_즉시구매는_장바구니쿠키없이_주문을_생성한다() {
+        OrderCreateRequest request = new OrderCreateRequest(
+                null,
+                List.of(new OrderCreateRequest.DirectItem(10L, 20L, 1)),
+                new OrderCreateRequest.Orderer("비회원", "010-1234-5678", null),
+                new OrderCreateRequest.Receiver("수령인", "010-1234-5678", "12345", "서울", null),
+                null);
+        OrderCreateResponse expected = new OrderCreateResponse(
+                "ORD-1", OrderStatus.PENDING_PAYMENT, 10_000, 0, 0, 10_000,
+                List.of(), "guest-order-token");
+        when(guestCartTokenManager.hash(null)).thenReturn(null);
+        when(orderService.createOrder(null, null, request)).thenReturn(expected);
+
+        org.springframework.http.ResponseEntity<OrderCreateResponse> response =
+                controller.createOrder(null, null, request);
+
+        org.assertj.core.api.Assertions.assertThat(response.getStatusCode().value()).isEqualTo(201);
+        org.assertj.core.api.Assertions.assertThat(response.getBody()).isSameAs(expected);
+        verify(orderService).createOrder(null, null, request);
     }
 }

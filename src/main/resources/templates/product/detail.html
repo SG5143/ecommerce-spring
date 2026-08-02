@@ -6,6 +6,7 @@
     <title th:text="'Mingler | ' + ${product.name}">Mingler</title>
     <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/checkout-state.js}" defer></script>
     <script th:src="@{/js/product-detail.js}" defer></script>
 </head>
 <body>
@@ -97,7 +98,7 @@
 
             <div class="detail-actions" th:unless="${product.soldOut}">
                 <button type="button" class="detail-btn detail-btn-cart">CART</button>
-                <button type="button" class="detail-btn detail-btn-buy not-implemented">BUY IT NOW</button>
+                <button type="button" class="detail-btn detail-btn-buy">BUY IT NOW</button>
             </div>
             <p id="cart-add-message" class="cart-add-message" role="status" aria-live="polite"></p>
             <div class="detail-actions" th:if="${product.soldOut}">

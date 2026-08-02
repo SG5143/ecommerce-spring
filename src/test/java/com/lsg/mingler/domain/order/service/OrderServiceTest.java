@@ -153,6 +153,148 @@ class OrderServiceTest {
     }
 
     @Test
+    void 회원_즉시구매는_장바구니없이_선택한_모든옵션을_주문한다() {
+        Member member = member(7L, "홍길동", "010-1111-2222", "member@example.com");
+        Product product = product(10L, 30L, 10000, 9000, 20);
+        ProductOption firstOption = option(20L, 10L, "Large", 1000, 10, true);
+        ProductOption secondOption = option(21L, 10L, "Small", 0, 10, true);
+        Category category = category(30L, "상의");
+        when(memberRepository.findById(7L)).thenReturn(Optional.of(member));
+        when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
+        when(productOptionRepository.findAllById(Set.of(20L, 21L)))
+                .thenReturn(List.of(firstOption, secondOption));
+        when(categoryRepository.findAllById(Set.of(30L))).thenReturn(List.of(category));
+        stubIdentifiersAndSaves();
+
+        OrderCreateResponse response = orderService.createOrder(
+                7L,
+                null,
+                directRequest(List.of(
+                        new OrderCreateRequest.DirectItem(10L, 20L, 2),
+                        new OrderCreateRequest.DirectItem(10L, 21L, 1)),
+                        null));
+
+        assertThat(response.merchandiseAmount()).isEqualTo(29_000);
+        assertThat(response.items()).extracting(OrderCreateResponse.Item::optionId)
+                .containsExactly(20L, 21L);
+        verify(orderItemRepository).saveAll(orderItemsCaptor.capture());
+        assertThat(orderItemsCaptor.getValue())
+                .allSatisfy(item -> assertThat(item.getSourceCartItemId()).isNull());
+        verify(cartRepository, never()).findByMemberIdForUpdate(any());
+        verify(cartItemRepository, never()).findAllByCartIdAndIdIn(any(), any());
+    }
+
+    @Test
+    void 비회원_즉시구매는_장바구니토큰없이_주문조회토큰을_발급한다() {
+        Product product = product(10L, 30L, 12000, null, 3);
+        ProductOption option = option(20L, 10L, "기본 구성", 0, 3, true);
+        Category category = category(30L, "상의");
+        when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
+        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
+        when(categoryRepository.findAllById(Set.of(30L))).thenReturn(List.of(category));
+        when(identifierGenerator.generateOrderNumber()).thenReturn("ORD-TEST");
+        when(orderRepository.existsByOrderNumber("ORD-TEST")).thenReturn(false);
+        when(identifierGenerator.generateGuestToken())
+                .thenReturn(new OrderIdentifierGenerator.GuestToken("raw-order-token", "order-hash"));
+        when(orderRepository.existsByGuestTokenHash("order-hash")).thenReturn(false);
+        stubOrderSaves();
+
+        OrderCreateResponse response = orderService.createOrder(
+                null,
+                null,
+                directRequest(
+                        List.of(new OrderCreateRequest.DirectItem(10L, 20L, 1)),
+                        new OrderCreateRequest.Orderer("비회원", "010-9999-8888", null)));
+
+        assertThat(response.guestOrderToken()).isEqualTo("raw-order-token");
+        verify(cartRepository, never()).findByGuestTokenHashForUpdate(any());
+    }
+
+    @Test
+    void 장바구니와_즉시구매항목을_함께_요청하면_거부한다() {
+        OrderCreateRequest request = new OrderCreateRequest(
+                List.of(100L),
+                List.of(new OrderCreateRequest.DirectItem(10L, 20L, 1)),
+                null,
+                receiver(),
+                null);
+
+        assertThatThrownBy(() -> orderService.createOrder(7L, null, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("하나만");
+
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void 주문항목이_모두_비어있으면_거부한다() {
+        OrderCreateRequest request = new OrderCreateRequest(
+                null, null, null, receiver(), null);
+
+        assertThatThrownBy(() -> orderService.createOrder(7L, null, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("하나만");
+
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void 중복된_즉시구매옵션은_조회전에_거부한다() {
+        OrderCreateRequest request = directRequest(List.of(
+                new OrderCreateRequest.DirectItem(10L, 20L, 1),
+                new OrderCreateRequest.DirectItem(10L, 20L, 2)), null);
+
+        assertThatThrownBy(() -> orderService.createOrder(7L, null, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("중복");
+
+        verify(productRepository, never()).findAllById(any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void 즉시구매_옵션이_상품에_속하지_않으면_거부한다() {
+        Member member = member(7L, "홍길동", "010-1111-2222", null);
+        Product product = product(10L, 30L, 12000, null, 3);
+        ProductOption otherProductOption = option(20L, 11L, "다른 상품 옵션", 0, 3, true);
+        Category category = category(30L, "상의");
+        when(memberRepository.findById(7L)).thenReturn(Optional.of(member));
+        when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
+        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(otherProductOption));
+        when(categoryRepository.findAllById(Set.of(30L))).thenReturn(List.of(category));
+
+        assertThatThrownBy(() -> orderService.createOrder(
+                7L,
+                null,
+                directRequest(List.of(new OrderCreateRequest.DirectItem(10L, 20L, 1)), null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("속하지 않은");
+
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void 즉시구매_수량이_현재재고보다_많으면_거부한다() {
+        Member member = member(7L, "홍길동", "010-1111-2222", null);
+        Product product = product(10L, 30L, 12000, null, 2);
+        ProductOption option = option(20L, 10L, "기본 구성", 0, 2, true);
+        Category category = category(30L, "상의");
+        when(memberRepository.findById(7L)).thenReturn(Optional.of(member));
+        when(productRepository.findAllById(Set.of(10L))).thenReturn(List.of(product));
+        when(productOptionRepository.findAllById(Set.of(20L))).thenReturn(List.of(option));
+        when(categoryRepository.findAllById(Set.of(30L))).thenReturn(List.of(category));
+
+        assertThatThrownBy(() -> orderService.createOrder(
+                7L,
+                null,
+                directRequest(List.of(new OrderCreateRequest.DirectItem(10L, 20L, 3)), null)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("재고가 부족");
+
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
     void 비회원_주문의_입력문자열은_정규화해서_저장한다() {
         Cart cart = guestCart(1L, "cart-hash");
         CartItem cartItem = cartItem(100L, 1L, 10L, 20L, 1);
@@ -325,6 +467,13 @@ class OrderServiceTest {
 
     private OrderCreateRequest request(OrderCreateRequest.Orderer orderer) {
         return new OrderCreateRequest(List.of(100L), orderer, receiver(), "문 앞에 놓아주세요.");
+    }
+
+    private OrderCreateRequest directRequest(
+            List<OrderCreateRequest.DirectItem> directItems,
+            OrderCreateRequest.Orderer orderer) {
+        return new OrderCreateRequest(
+                null, directItems, orderer, receiver(), "문 앞에 놓아주세요.");
     }
 
     private OrderCreateRequest.Receiver receiver() {

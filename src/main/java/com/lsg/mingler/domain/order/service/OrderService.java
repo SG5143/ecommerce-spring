@@ -55,21 +55,22 @@ public class OrderService {
     private final OrderIdentifierGenerator identifierGenerator; // 주문 식별자 생성기
 
     /**
-     * 선택한 장바구니 항목을 현재 상품 정보로 재검증하고 결제 전 주문서와 상품 스냅샷을 생성한다.
+     * 선택한 장바구니 또는 즉시구매 항목을 현재 상품 정보로 재검증하고 결제 전 주문서와 상품 스냅샷을 생성한다.
      * 주문 생성 단계에서는 장바구니를 비우거나 재고를 차감하지 않는다.
      *
      * <p>처리 순서:</p>
      * <ol>
-     *   <li>요청 항목이 실제 요청자의 장바구니 소유인지 검증한다.</li>
+     *   <li>장바구니와 즉시구매 중 하나의 주문 원본만 전달됐는지 검증한다.</li>
+     *   <li>장바구니 주문이면 요청 항목이 실제 요청자의 소유인지 검증한다.</li>
      *   <li>회원은 DB 회원정보를, 비회원은 요청값을 주문자 스냅샷으로 사용한다.</li>
-     *   <li>장바구니에 담은 당시가 아닌 현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.</li>
+     *   <li>현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.</li>
      *   <li>고유 주문번호와 비회원 조회 토큰을 생성하고 주문을 저장한다.</li>
      *   <li>주문 ID 확정 후 상품 스냅샷(OrderItem)을 저장한다. 중간 실패 시 전체 롤백된다.</li>
      * </ol>
      *
      * @param memberId           인증된 회원 ID. 비회원 요청은 {@code null}
      * @param guestCartTokenHash 비회원 장바구니 식별용 SHA-256 토큰 해시. 회원 요청은 {@code null}
-     * @param request            주문 생성 요청 (장바구니 항목 ID 목록, 주문자·수령인 정보, 배송 요청사항)
+     * @param request            주문 생성 요청 (장바구니 또는 즉시구매 항목, 주문자·수령인 정보, 배송 요청사항)
      * @return 생성된 주문서 정보. 비회원인 경우 {@code guestOrderToken} 원문을 포함.
      * @throws IllegalArgumentException 입력값 검증 실패 시 (400)
      * @throws ResourceNotFoundException 요청한 장바구니·상품 정보를 찾을 수 없는 경우
@@ -79,10 +80,8 @@ public class OrderService {
     @Transactional
     public OrderCreateResponse createOrder(Long memberId, String guestCartTokenHash, OrderCreateRequest request) {
 
-        // 1. 요청 항목이 실제 요청자의 장바구니 소유인지 먼저 확정한다.
-        List<Long> cartItemIds = validateAndNormalizeItemIds(request);
-        Cart cart = requireOwnedCart(memberId, guestCartTokenHash);
-        List<CartItem> cartItems = requireOwnedItems(cart.getId(), cartItemIds);
+        // 1. 장바구니 주문과 즉시구매 중 하나의 주문 원본만 허용하고 공통 스냅샷 입력으로 변환한다.
+        List<SnapshotInput> snapshotInputs = resolveSnapshotInputs(memberId, guestCartTokenHash, request);
 
         // 2. 회원은 회원정보를, 비회원은 요청값을 주문자 스냅샷으로 사용한다.
         OrdererSnapshot orderer = resolveOrderer(memberId, request.orderer());
@@ -90,8 +89,8 @@ public class OrderService {
         String deliveryMessage = InputValidator.optionalText(request.deliveryMessage(), 255, "배송 요청사항은 255자 이하여야 합니다.");
 
         // 3. 장바구니에 담았을 당시 값이 아닌 현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.
-        SnapshotContext context = loadSnapshotContext(cartItems);
-        List<ItemSnapshot> snapshots = cartItems.stream()
+        SnapshotContext context = loadSnapshotContext(snapshotInputs);
+        List<ItemSnapshot> snapshots = snapshotInputs.stream()
                 .map(item -> createSnapshot(item, context))
                 .toList();
         int merchandiseAmount = calculateMerchandiseAmount(snapshots);
@@ -139,21 +138,70 @@ public class OrderService {
      * @return 검증을 통과하고 요청 순서가 유지된 장바구니 항목 ID 목록
      * @throws IllegalArgumentException 검증 실패 시
      */
-    private List<Long> validateAndNormalizeItemIds(OrderCreateRequest request) {
-        if (request == null || request.cartItemIds() == null || request.cartItemIds().isEmpty()) {
+    private List<SnapshotInput> resolveSnapshotInputs(Long memberId, String guestCartTokenHash, OrderCreateRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("주문할 상품을 선택해주세요.");
+        }
+
+        boolean hasCartItems = request.cartItemIds() != null && !request.cartItemIds().isEmpty();
+        boolean hasDirectItems = request.directItems() != null && !request.directItems().isEmpty();
+        if (hasCartItems == hasDirectItems) {
+            throw new IllegalArgumentException("장바구니 상품과 즉시구매 상품 중 하나만 선택해주세요.");
+        }
+
+        if (hasDirectItems) {
+            return validateDirectItems(request.directItems());
+        }
+
+        List<Long> cartItemIds = validateAndNormalizeCartItemIds(request.cartItemIds());
+        Cart cart = requireOwnedCart(memberId, guestCartTokenHash);
+        return requireOwnedItems(cart.getId(), cartItemIds).stream()
+                .map(item -> new SnapshotInput(
+                        item.getId(),
+                        item.getProductId(),
+                        item.getProductOptionId(),
+                        item.getQuantity()))
+                .toList();
+    }
+
+    private List<Long> validateAndNormalizeCartItemIds(List<Long> cartItemIds) {
+        if (cartItemIds == null || cartItemIds.isEmpty()) {
             throw new IllegalArgumentException("주문할 장바구니 상품을 선택해주세요.");
         }
 
-        boolean containsNull = request.cartItemIds().stream().anyMatch(Objects::isNull);
-        if (request.cartItemIds().size() > MAX_ORDER_LINES || containsNull) {
+        boolean containsNull = cartItemIds.stream().anyMatch(Objects::isNull);
+        if (cartItemIds.size() > MAX_ORDER_LINES || containsNull) {
             throw new IllegalArgumentException("주문 상품 목록이 올바르지 않습니다.");
         }
 
-        LinkedHashSet<Long> distinctIds = new LinkedHashSet<>(request.cartItemIds());
-        if (distinctIds.size() != request.cartItemIds().size()) {
+        LinkedHashSet<Long> distinctIds = new LinkedHashSet<>(cartItemIds);
+        if (distinctIds.size() != cartItemIds.size()) {
             throw new IllegalArgumentException("중복된 장바구니 상품이 포함되어 있습니다.");
         }
         return List.copyOf(distinctIds);
+    }
+
+    private List<SnapshotInput> validateDirectItems(List<OrderCreateRequest.DirectItem> directItems) {
+        if (directItems.size() > MAX_ORDER_LINES || directItems.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("즉시구매 상품 목록이 올바르지 않습니다.");
+        }
+
+        LinkedHashSet<DirectVariantKey> variants = new LinkedHashSet<>();
+        List<SnapshotInput> inputs = directItems.stream()
+                .map(item -> {
+                    if (item.productId() == null || item.productId() <= 0 || item.optionId() == null || item.optionId() <= 0) {
+                        throw new IllegalArgumentException("즉시구매 상품 정보가 올바르지 않습니다.");
+                    }
+                    if (item.quantity() == null || item.quantity() < 1 || item.quantity() > MAX_QUANTITY) {
+                        throw new IllegalArgumentException("주문수량은 1개 이상 99개 이하여야 합니다.");
+                    }
+                    if (!variants.add(new DirectVariantKey(item.productId(), item.optionId()))) {
+                        throw new IllegalArgumentException("중복된 즉시구매 상품이 포함되어 있습니다.");
+                    }
+                    return new SnapshotInput(null, item.productId(), item.optionId(), item.quantity());
+                })
+                .toList();
+        return List.copyOf(inputs);
     }
 
     /**
@@ -274,15 +322,15 @@ public class OrderService {
     /**
      * 장바구니에 담긴 당시 가격이 아닌 현재 판매 정보를 스냅샷 검증에 사용한다.
      *
-     * @param cartItems 주문 대상 장바구니 항목 목록
+     * @param inputs 장바구니 또는 즉시구매에서 변환한 주문 항목 목록
      * @return 스냅샷 생성에 필요한 상품·옵션·카테고리 맵
      */
-    private SnapshotContext loadSnapshotContext(List<CartItem> cartItems) {
-        Set<Long> productIds = cartItems.stream()
-                .map(CartItem::getProductId)
+    private SnapshotContext loadSnapshotContext(List<SnapshotInput> inputs) {
+        Set<Long> productIds = inputs.stream()
+                .map(SnapshotInput::productId)
                 .collect(Collectors.toSet());
-        Set<Long> optionIds = cartItems.stream()
-                .map(CartItem::getProductOptionId)
+        Set<Long> optionIds = inputs.stream()
+                .map(SnapshotInput::optionId)
                 .collect(Collectors.toSet());
         if (optionIds.contains(null)) {
             throw new ConflictException("상품 옵션 정보를 찾을 수 없습니다.");
@@ -299,8 +347,8 @@ public class OrderService {
         return new SnapshotContext(products, options, categories);
     }
 
-    private ItemSnapshot createSnapshot(CartItem cartItem, SnapshotContext context) {
-        Product product = context.products().get(cartItem.getProductId());
+    private ItemSnapshot createSnapshot(SnapshotInput input, SnapshotContext context) {
+        Product product = context.products().get(input.productId());
         if (product == null) {
             throw new ResourceNotFoundException("상품을 찾을 수 없습니다.");
         }
@@ -308,10 +356,10 @@ public class OrderService {
             throw new ConflictException("현재 판매 중이 아닌 상품이 포함되어 있습니다.");
         }
 
-        if (cartItem.getProductOptionId() == null) {
+        if (input.optionId() == null) {
             throw new ConflictException("상품 옵션 정보를 찾을 수 없습니다.");
         }
-        ProductOption option = context.options().get(cartItem.getProductOptionId());
+        ProductOption option = context.options().get(input.optionId());
         if (option == null) {
             throw new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다.");
         }
@@ -325,7 +373,7 @@ public class OrderService {
         int unitPrice = product.getDisplayPrice();
         unitPrice = safeAdd(unitPrice, option.getExtraPrice());
 
-        int quantity = cartItem.getQuantity();
+        int quantity = input.quantity();
         if (quantity < 1 || quantity > MAX_QUANTITY) {
             throw new IllegalArgumentException("주문수량은 1개 이상 99개 이하여야 합니다.");
         }
@@ -339,7 +387,7 @@ public class OrderService {
         }
         int lineAmount = safeMultiply(unitPrice, quantity);
         return new ItemSnapshot(
-                cartItem.getId(),
+                input.sourceCartItemId(),
                 product.getId(),
                 option.getId(),
                 product.getName(),
@@ -463,6 +511,15 @@ public class OrderService {
             Map<Long, ProductOption> options,
             Map<Long, Category> categories
     ) {}
+
+    private record SnapshotInput(
+            Long sourceCartItemId,
+            Long productId,
+            Long optionId,
+            Integer quantity
+    ) {}
+
+    private record DirectVariantKey(Long productId, Long optionId) {}
 
     private record ItemSnapshot(
             Long sourceCartItemId,

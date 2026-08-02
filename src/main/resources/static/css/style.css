@@ -1783,12 +1783,12 @@ button {
     min-height: 20px;
     margin: 10px 0 0;
     font-size: 13px;
-    color: #287a45;
+    color: #4d4d4d;
 }
 
 .cart-add-message.is-error,
 .cart-page-message.is-error {
-    color: #c73535;
+    color: #845757;
 }
 
 .cart-add-message a {

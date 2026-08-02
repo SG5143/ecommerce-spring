@@ -146,6 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── 장바구니: 선택한 모든 옵션을 한 요청으로 원자적으로 추가 ──
     const cartButton = document.querySelector('.detail-btn-cart');
+    const buyButton = document.querySelector('.detail-btn-buy');
     const cartMessage = document.getElementById('cart-add-message');
 
     function showCartMessage(message, isError) {
@@ -209,6 +210,59 @@ document.addEventListener('DOMContentLoaded', function () {
                     cartButton.disabled = false;
                 });
         });
+    }
+
+    // ── 즉시구매: 장바구니를 변경하지 않고 선택 옵션을 주문서로 전달 ──
+    if (buyButton) {
+        buyButton.addEventListener('click', function () {
+            const rows = Array.from(selectedList.querySelectorAll('.selected-option'));
+            if (rows.length === 0) {
+                showCartMessage('상품 옵션을 선택해주세요.', true);
+                return;
+            }
+
+            const pending = window.checkoutState.getPending();
+            if (pending) {
+                const continuePayment = window.confirm(
+                    '결제가 완료되지 않은 이전 주문이 있습니다.\n'
+                    + '확인을 누르면 이전 결제를 계속하고, 취소를 누르면 새 주문을 시작합니다.'
+                );
+                if (continuePayment) {
+                    window.location.href = '/checkout/payment';
+                    return;
+                }
+                window.checkoutState.clearPending();
+            }
+
+            const productId = Number(infoRoot.dataset.productId);
+            const productName = document.querySelector('.detail-name').textContent.trim();
+            const thumbnailUrl = mainImage ? mainImage.src : null;
+            const items = rows.map(function (row) {
+                const unitPrice = basePrice + Number(row.dataset.extraPrice);
+                const optionNameElement = row.querySelector('.selected-option-name');
+                return {
+                    productId: productId,
+                    optionId: Number(row.dataset.optionId),
+                    quantity: rowQty(row),
+                    productName: productName,
+                    optionName: optionSelect && optionNameElement
+                        ? optionNameElement.textContent.trim()
+                        : null,
+                    thumbnailUrl: thumbnailUrl,
+                    unitPrice: unitPrice
+                };
+            });
+
+            window.checkoutState.clearComplete();
+            window.checkoutState.setDirectSelection(items, window.location.pathname);
+            window.location.href = '/checkout';
+        });
+    }
+
+    const productNotice = sessionStorage.getItem('productNotice');
+    if (productNotice) {
+        showCartMessage(productNotice, true);
+        sessionStorage.removeItem('productNotice');
     }
 
     // ── 하단 아코디언 (제품 상세 정보 / 배송 / 교환 & 반품) ──

@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const message = document.getElementById('checkout-message');
     const submitButton = document.getElementById('checkout-order-submit');
     const itemList = document.getElementById('checkout-order-items');
+    const returnLink = document.getElementById('checkout-return-link');
     const loggedIn = !!window.getAccessToken();
     const ownerType = loggedIn ? 'MEMBER' : 'GUEST';
     let selectedItems = [];
@@ -16,9 +17,14 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
     if (!selection) {
-        returnToCart('주문할 상품을 장바구니에서 다시 선택해주세요.');
+        returnToSource('주문할 상품을 다시 선택해주세요.');
         return;
     }
+
+    returnLink.href = state.getReturnUrl(selection);
+    returnLink.textContent = selection.source === 'DIRECT'
+        ? '상품 상세로 돌아가기'
+        : '장바구니로 돌아가기';
 
     function formatWon(amount) {
         return '₩' + Number(amount || 0).toLocaleString('ko-KR');
@@ -43,9 +49,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function returnToCart(text) {
-        sessionStorage.setItem('cartNotice', text);
-        window.location.replace('/cart');
+    function returnToSource(text) {
+        const direct = selection && selection.source === 'DIRECT';
+        sessionStorage.setItem(direct ? 'productNotice' : 'cartNotice', text);
+        window.location.replace(state.getReturnUrl(selection));
     }
 
     function requestJson(url, options) {
@@ -182,7 +189,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function buildRequest() {
         return {
-            cartItemIds: selection.cartItemIds,
+            cartItemIds: selection.source === 'CART' ? selection.cartItemIds : null,
+            directItems: selection.source === 'DIRECT'
+                ? selection.directItems.map(function (item) {
+                    return {
+                        productId: item.productId,
+                        optionId: item.optionId,
+                        quantity: item.quantity
+                    };
+                })
+                : null,
             orderer: loggedIn ? null : {
                 name: value('orderer-name'),
                 phone: value('orderer-phone'),
@@ -199,21 +215,27 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 
-    const cartRequest = requestJson('/api/v1/cart');
+    const itemsRequest = selection.source === 'DIRECT'
+        ? Promise.resolve({ items: selection.directItems })
+        : requestJson('/api/v1/cart');
     const memberRequest = loggedIn ? requestJson('/api/v1/members/me/detail') : Promise.resolve(null);
 
-    Promise.all([cartRequest, memberRequest])
+    Promise.all([itemsRequest, memberRequest])
         .then(function (results) {
-            const cart = results[0];
-            const itemById = new Map((cart.items || []).map(function (item) {
-                return [Number(item.id), item];
-            }));
-            selectedItems = selection.cartItemIds.map(function (id) {
-                return itemById.get(Number(id));
-            });
+            if (selection.source === 'DIRECT') {
+                selectedItems = results[0].items || [];
+            } else {
+                const cart = results[0];
+                const itemById = new Map((cart.items || []).map(function (item) {
+                    return [Number(item.id), item];
+                }));
+                selectedItems = selection.cartItemIds.map(function (id) {
+                    return itemById.get(Number(id));
+                });
+            }
             if (selectedItems.some(function (item) { return !item || !item.available; })) {
                 state.clearSelection();
-                returnToCart('선택한 상품의 판매 상태나 재고가 변경되었습니다. 장바구니에서 다시 확인해주세요.');
+                returnToSource('선택한 상품의 판매 상태나 재고가 변경되었습니다. 다시 확인해주세요.');
                 return;
             }
             renderItems(selectedItems);
@@ -229,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function () {
             loading.hidden = true;
             if (error.status === 404) {
                 state.clearSelection();
-                returnToCart(error.message);
+                returnToSource(error.message);
                 return;
             }
             showMessage(error.status ? error.message : '네트워크 오류로 주문 정보를 불러오지 못했습니다.');
@@ -313,7 +335,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 submitButton.textContent = '주문서 생성';
                 if (error.status === 404) {
                     state.clearSelection();
-                    returnToCart(error.message);
+                    returnToSource(error.message);
+                    return;
+                }
+                if (selection.source === 'DIRECT' && error.status === 409) {
+                    state.clearSelection();
+                    returnToSource(error.message);
                     return;
                 }
                 showMessage(error.status ? error.message : '네트워크 오류가 발생했습니다. 입력값을 유지한 채 다시 시도해주세요.');

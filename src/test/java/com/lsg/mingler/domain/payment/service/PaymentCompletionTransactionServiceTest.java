@@ -59,6 +59,21 @@ class PaymentCompletionTransactionServiceTest {
     }
 
     @Test
+    void 즉시구매_DONE_응답은_기존_장바구니를_삭제하지_않는다() {
+        Payment payment = processingPayment();
+        Order order = order();
+        OrderItem item = orderItem(null);
+        stubLocked(payment, order);
+        when(orderItemRepository.findAllByOrderIdOrderByIdAsc(500L)).thenReturn(List.of(item));
+
+        PaymentConfirmResponse response = service.complete("TOSS-order", doneResult(20_000));
+
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
+        verify(cartItemRepository, never()).deleteAllByIdInBatch(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
     void 승인금액이_다르면_PROCESSING과_재고예약을_유지한다() {
         Payment payment = processingPayment();
         Order order = order();
