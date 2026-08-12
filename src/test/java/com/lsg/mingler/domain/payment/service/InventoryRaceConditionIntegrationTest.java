@@ -14,6 +14,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(properties = "spring.datasource.hikari.maximum-pool-size=10")
 @ActiveProfiles("test")
@@ -152,23 +155,132 @@ class InventoryRaceConditionIntegrationTest {
         assertThat(findStock()).isZero();
     }
 
+    @Test
+    void 비관적_락이_해제될_때까지_다음_재고_예약이_대기한다() throws Exception {
+        CountDownLatch lockAcquired = new CountDownLatch(1);
+        CountDownLatch releaseLock = new CountDownLatch(1);
+        CountDownLatch contenderStarted = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        OrderItem orderItem = OrderItem.builder()
+                .productId(productId)
+                .productOptionId(optionId)
+                .quantity(1)
+                .build();
+
+        try {
+            Future<?> holder = executor.submit(() -> {
+                TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+                transaction.executeWithoutResult(status -> {
+                    productOptionRepository.findAllByIdInForUpdate(List.of(optionId));
+                    lockAcquired.countDown();
+                    await(releaseLock);
+                });
+            });
+            assertThat(lockAcquired.await(LATCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+
+            Future<?> contender = executor.submit(() -> {
+                contenderStarted.countDown();
+                TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+                transaction.executeWithoutResult(status -> inventoryService.reserve(List.of(orderItem)));
+            });
+            assertThat(contenderStarted.await(LATCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+
+            assertThatThrownBy(() -> contender.get(300, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            releaseLock.countDown();
+            holder.get(FUTURE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            contender.get(FUTURE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            assertThat(findStock()).isZero();
+        } finally {
+            releaseLock.countDown();
+            executor.shutdownNow();
+            executor.awaitTermination(LATCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void 옵션_입력_순서가_달라도_ID_순서로_잠가_교착상태_없이_완료한다() throws Exception {
+        jdbcTemplate.update(
+                "UPDATE product_option SET stock_quantity = ? WHERE id = ?",
+                2,
+                optionId);
+        ProductOption secondOption = productOptionRepository.saveAndFlush(ProductOption.builder()
+                .productId(productId)
+                .name("재고 동시성 테스트 두 번째 옵션")
+                .stockQuantity(2)
+                .isActive(true)
+                .isDefault(false)
+                .build());
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger sequence = new AtomicInteger();
+
+        OrderItem firstOptionItem = OrderItem.builder()
+                .productId(productId)
+                .productOptionId(optionId)
+                .quantity(1)
+                .build();
+        OrderItem secondOptionItem = OrderItem.builder()
+                .productId(productId)
+                .productOptionId(secondOption.getId())
+                .quantity(1)
+                .build();
+
+        List<Boolean> results = executeConcurrently(2, () -> {
+            int worker = sequence.getAndIncrement();
+            ready.countDown();
+            await(start);
+
+            List<OrderItem> orderItems = worker == 0
+                    ? List.of(firstOptionItem, secondOptionItem)
+                    : List.of(secondOptionItem, firstOptionItem);
+            TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+            transaction.executeWithoutResult(status -> inventoryService.reserve(orderItems));
+            return true;
+        }, ready, start);
+
+        assertThat(results).containsExactlyInAnyOrder(true, true);
+        assertThat(findStock(optionId)).isZero();
+        assertThat(findStock(secondOption.getId())).isZero();
+    }
+
     private List<Boolean> executeConcurrently(
             Callable<Boolean> task,
             CountDownLatch ready,
             CountDownLatch start) throws Exception {
-        return executeConcurrently(task, ready, start, null, null);
+        return executeConcurrently(WORKER_COUNT, task, ready, start, null, null);
     }
 
     private List<Boolean> executeConcurrently(
             Callable<Boolean> task,
             CountDownLatch ready,
             CountDownLatch start,
-        CountDownLatch phaseReady,
-        CountDownLatch phaseStart) throws Exception {
+            CountDownLatch phaseReady,
+            CountDownLatch phaseStart) throws Exception {
+        return executeConcurrently(WORKER_COUNT, task, ready, start, phaseReady, phaseStart);
+    }
+
+    private List<Boolean> executeConcurrently(
+            int workerCount,
+            Callable<Boolean> task,
+            CountDownLatch ready,
+            CountDownLatch start) throws Exception {
+        return executeConcurrently(workerCount, task, ready, start, null, null);
+    }
+
+    private List<Boolean> executeConcurrently(
+            int workerCount,
+            Callable<Boolean> task,
+            CountDownLatch ready,
+            CountDownLatch start,
+            CountDownLatch phaseReady,
+            CountDownLatch phaseStart) throws Exception {
         List<Future<Boolean>> futures = new ArrayList<>();
-        ExecutorService executor = Executors.newFixedThreadPool(WORKER_COUNT);
+        ExecutorService executor = Executors.newFixedThreadPool(workerCount);
         try {
-            for (int worker = 0; worker < WORKER_COUNT; worker++) {
+            for (int worker = 0; worker < workerCount; worker++) {
                 futures.add(executor.submit(task));
             }
 
@@ -195,10 +307,14 @@ class InventoryRaceConditionIntegrationTest {
     }
 
     private int findStock() {
+        return findStock(optionId);
+    }
+
+    private int findStock(Long targetOptionId) {
         Integer stock = jdbcTemplate.queryForObject(
                 "SELECT stock_quantity FROM product_option WHERE id = ?",
                 Integer.class,
-                optionId);
+                targetOptionId);
         if (stock == null) {
             throw new IllegalStateException("테스트할 상품 옵션을 찾을 수 없습니다.");
         }
