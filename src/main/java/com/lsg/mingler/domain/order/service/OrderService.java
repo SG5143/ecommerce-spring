@@ -19,6 +19,9 @@ import com.lsg.mingler.domain.product.entity.Category;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
 import com.lsg.mingler.global.error.AuthenticationException;
+import com.lsg.mingler.global.error.ConflictException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
+import com.lsg.mingler.global.validation.InputValidator;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -28,14 +31,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -44,8 +44,6 @@ public class OrderService {
     private static final int MAX_ORDER_LINES = 100; // 주문 한도
     private static final int MAX_QUANTITY = 99; // 주문수량 한도
     private static final int IDENTIFIER_GENERATION_ATTEMPTS = 5; // 식별자 재시도 횟수
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"); // 이메일 형식
-
     private final OrderRepository orderRepository; // 주문 저장소
     private final OrderItemRepository orderItemRepository; // 주문 상품 저장소
     private final CartRepository cartRepository; // 장바구니 저장소
@@ -57,42 +55,42 @@ public class OrderService {
     private final OrderIdentifierGenerator identifierGenerator; // 주문 식별자 생성기
 
     /**
-     * 선택한 장바구니 항목을 현재 상품 정보로 재검증하고 결제 전 주문서와 상품 스냅샷을 생성한다.
+     * 선택한 장바구니 또는 즉시구매 항목을 현재 상품 정보로 재검증하고 결제 전 주문서와 상품 스냅샷을 생성한다.
      * 주문 생성 단계에서는 장바구니를 비우거나 재고를 차감하지 않는다.
      *
      * <p>처리 순서:</p>
      * <ol>
-     *   <li>요청 항목이 실제 요청자의 장바구니 소유인지 검증한다.</li>
+     *   <li>장바구니와 즉시구매 중 하나의 주문 원본만 전달됐는지 검증한다.</li>
+     *   <li>장바구니 주문이면 요청 항목이 실제 요청자의 소유인지 검증한다.</li>
      *   <li>회원은 DB 회원정보를, 비회원은 요청값을 주문자 스냅샷으로 사용한다.</li>
-     *   <li>장바구니에 담은 당시가 아닌 현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.</li>
+     *   <li>현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.</li>
      *   <li>고유 주문번호와 비회원 조회 토큰을 생성하고 주문을 저장한다.</li>
      *   <li>주문 ID 확정 후 상품 스냅샷(OrderItem)을 저장한다. 중간 실패 시 전체 롤백된다.</li>
      * </ol>
      *
      * @param memberId           인증된 회원 ID. 비회원 요청은 {@code null}
      * @param guestCartTokenHash 비회원 장바구니 식별용 SHA-256 토큰 해시. 회원 요청은 {@code null}
-     * @param request            주문 생성 요청 (장바구니 항목 ID 목록, 주문자·수령인 정보, 배송 요청사항)
+     * @param request            주문 생성 요청 (장바구니 또는 즉시구매 항목, 주문자·수령인 정보, 배송 요청사항)
      * @return 생성된 주문서 정보. 비회원인 경우 {@code guestOrderToken} 원문을 포함.
      * @throws IllegalArgumentException 입력값 검증 실패 시 (400)
-     * @throws org.springframework.web.server.ResponseStatusException 소유권 불일치·재고 부족·판매 중단 상품 포함 시 (404/409)
+     * @throws ResourceNotFoundException 요청한 장바구니·상품 정보를 찾을 수 없는 경우
+     * @throws ConflictException 재고 부족·판매 중단 등 현재 상태와 주문 요청이 충돌하는 경우
      * @throws com.lsg.mingler.global.error.AuthenticationException 회원 계정 이상 시 (401)
      */
     @Transactional
     public OrderCreateResponse createOrder(Long memberId, String guestCartTokenHash, OrderCreateRequest request) {
 
-        // 1. 요청 항목이 실제 요청자의 장바구니 소유인지 먼저 확정한다.
-        List<Long> cartItemIds = validateAndNormalizeItemIds(request);
-        Cart cart = requireOwnedCart(memberId, guestCartTokenHash);
-        List<CartItem> cartItems = requireOwnedItems(cart.getId(), cartItemIds);
+        // 1. 장바구니 주문과 즉시구매 중 하나의 주문 원본만 허용하고 공통 스냅샷 입력으로 변환한다.
+        List<SnapshotInput> snapshotInputs = resolveSnapshotInputs(memberId, guestCartTokenHash, request);
 
         // 2. 회원은 회원정보를, 비회원은 요청값을 주문자 스냅샷으로 사용한다.
         OrdererSnapshot orderer = resolveOrderer(memberId, request.orderer());
         ReceiverSnapshot receiver = validateReceiver(request.receiver());
-        String deliveryMessage = normalizeOptional(request.deliveryMessage(), 255, "배송 요청사항은 255자 이하여야 합니다.");
+        String deliveryMessage = InputValidator.optionalText(request.deliveryMessage(), 255, "배송 요청사항은 255자 이하여야 합니다.");
 
         // 3. 장바구니에 담았을 당시 값이 아닌 현재 판매 상태·가격·재고로 주문 가능 여부를 재검증한다.
-        SnapshotContext context = loadSnapshotContext(cartItems);
-        List<ItemSnapshot> snapshots = cartItems.stream()
+        SnapshotContext context = loadSnapshotContext(snapshotInputs);
+        List<ItemSnapshot> snapshots = snapshotInputs.stream()
                 .map(item -> createSnapshot(item, context))
                 .toList();
         int merchandiseAmount = calculateMerchandiseAmount(snapshots);
@@ -140,21 +138,70 @@ public class OrderService {
      * @return 검증을 통과하고 요청 순서가 유지된 장바구니 항목 ID 목록
      * @throws IllegalArgumentException 검증 실패 시
      */
-    private List<Long> validateAndNormalizeItemIds(OrderCreateRequest request) {
-        if (request == null || request.cartItemIds() == null || request.cartItemIds().isEmpty()) {
+    private List<SnapshotInput> resolveSnapshotInputs(Long memberId, String guestCartTokenHash, OrderCreateRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("주문할 상품을 선택해주세요.");
+        }
+
+        boolean hasCartItems = request.cartItemIds() != null && !request.cartItemIds().isEmpty();
+        boolean hasDirectItems = request.directItems() != null && !request.directItems().isEmpty();
+        if (hasCartItems == hasDirectItems) {
+            throw new IllegalArgumentException("장바구니 상품과 즉시구매 상품 중 하나만 선택해주세요.");
+        }
+
+        if (hasDirectItems) {
+            return validateDirectItems(request.directItems());
+        }
+
+        List<Long> cartItemIds = validateAndNormalizeCartItemIds(request.cartItemIds());
+        Cart cart = requireOwnedCart(memberId, guestCartTokenHash);
+        return requireOwnedItems(cart.getId(), cartItemIds).stream()
+                .map(item -> new SnapshotInput(
+                        item.getId(),
+                        item.getProductId(),
+                        item.getProductOptionId(),
+                        item.getQuantity()))
+                .toList();
+    }
+
+    private List<Long> validateAndNormalizeCartItemIds(List<Long> cartItemIds) {
+        if (cartItemIds == null || cartItemIds.isEmpty()) {
             throw new IllegalArgumentException("주문할 장바구니 상품을 선택해주세요.");
         }
 
-        boolean containsNull = request.cartItemIds().stream().anyMatch(Objects::isNull);
-        if (request.cartItemIds().size() > MAX_ORDER_LINES || containsNull) {
+        boolean containsNull = cartItemIds.stream().anyMatch(Objects::isNull);
+        if (cartItemIds.size() > MAX_ORDER_LINES || containsNull) {
             throw new IllegalArgumentException("주문 상품 목록이 올바르지 않습니다.");
         }
 
-        LinkedHashSet<Long> distinctIds = new LinkedHashSet<>(request.cartItemIds());
-        if (distinctIds.size() != request.cartItemIds().size()) {
+        LinkedHashSet<Long> distinctIds = new LinkedHashSet<>(cartItemIds);
+        if (distinctIds.size() != cartItemIds.size()) {
             throw new IllegalArgumentException("중복된 장바구니 상품이 포함되어 있습니다.");
         }
         return List.copyOf(distinctIds);
+    }
+
+    private List<SnapshotInput> validateDirectItems(List<OrderCreateRequest.DirectItem> directItems) {
+        if (directItems.size() > MAX_ORDER_LINES || directItems.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("즉시구매 상품 목록이 올바르지 않습니다.");
+        }
+
+        LinkedHashSet<DirectVariantKey> variants = new LinkedHashSet<>();
+        List<SnapshotInput> inputs = directItems.stream()
+                .map(item -> {
+                    if (item.productId() == null || item.productId() <= 0 || item.optionId() == null || item.optionId() <= 0) {
+                        throw new IllegalArgumentException("즉시구매 상품 정보가 올바르지 않습니다.");
+                    }
+                    if (item.quantity() == null || item.quantity() < 1 || item.quantity() > MAX_QUANTITY) {
+                        throw new IllegalArgumentException("주문수량은 1개 이상 99개 이하여야 합니다.");
+                    }
+                    if (!variants.add(new DirectVariantKey(item.productId(), item.optionId()))) {
+                        throw new IllegalArgumentException("중복된 즉시구매 상품이 포함되어 있습니다.");
+                    }
+                    return new SnapshotInput(null, item.productId(), item.optionId(), item.quantity());
+                })
+                .toList();
+        return List.copyOf(inputs);
     }
 
     /**
@@ -170,19 +217,21 @@ public class OrderService {
      * @param guestCartTokenHash 비회원 장바구니 식별용 SHA-256 토큰 해시. 회원은 {@code null}
      * @return 잠금이 걸린 요청자 소유의 장바구니
      * @throws IllegalArgumentException 비회원인데 토큰 해시가 없을 때
-     * @throws org.springframework.web.server.ResponseStatusException 장바구니 없음·만료 시 (404)
+     * @throws ResourceNotFoundException 장바구니가 없거나 만료된 경우
      */
     private Cart requireOwnedCart(Long memberId, String guestCartTokenHash) {
         if (memberId != null) {
             // 수량 변경 API도 같은 잠금을 사용하므로 주문 생성 중 장바구니 변경을 막는다.
-            return cartRepository.findByMemberIdForUpdate(memberId).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+            return cartRepository.findByMemberIdForUpdate(memberId)
+                    .orElseThrow(() -> new ResourceNotFoundException("장바구니를 찾을 수 없습니다."));
         }
         if (guestCartTokenHash == null) {
             throw new IllegalArgumentException("비회원 장바구니 식별 정보가 필요합니다.");
         }
-        Cart cart = cartRepository.findByGuestTokenHashForUpdate(guestCartTokenHash).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+        Cart cart = cartRepository.findByGuestTokenHashForUpdate(guestCartTokenHash)
+                .orElseThrow(() -> new ResourceNotFoundException("장바구니를 찾을 수 없습니다."));
         if (cart.isExpired(LocalDateTime.now())) {
-            throw notFound("장바구니가 만료되었습니다.");
+            throw new ResourceNotFoundException("장바구니가 만료되었습니다.");
         }
         return cart;
     }
@@ -195,7 +244,7 @@ public class OrderService {
 
         // 개수가 다르면 타 장바구니 ID 또는 이미 삭제된 항목이 섞인 요청이다.
         if (itemMap.size() != requestedIds.size()) {
-            throw notFound("주문할 장바구니 상품을 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("주문할 장바구니 상품을 찾을 수 없습니다.");
         }
 
         // DB 조회 순서 대신 사용자가 선택한 순서를 유지해 응답 순서를 예측 가능하게 함.
@@ -223,9 +272,20 @@ public class OrderService {
             throw new IllegalArgumentException("비회원 주문자 정보를 입력해주세요.");
         }
         return new OrdererSnapshot(
-                requireText(requestOrderer.name(), 50, "주문자명을 입력해주세요.", "주문자명은 50자 이하여야 합니다."),
-                requireText(requestOrderer.phone(), 20, "주문자 연락처를 입력해주세요.", "주문자 연락처는 20자 이하여야 합니다."),
-                validateEmail(requestOrderer.email()));
+                InputValidator.requireText(
+                        requestOrderer.name(),
+                        50,
+                        "주문자명을 입력해주세요.",
+                        "주문자명은 50자 이하여야 합니다."),
+                InputValidator.requireText(
+                        requestOrderer.phone(),
+                        20,
+                        "주문자 연락처를 입력해주세요.",
+                        "주문자 연락처는 20자 이하여야 합니다."),
+                InputValidator.normalizeOptionalEmail(
+                        requestOrderer.email(),
+                        "이메일은 255자 이하여야 합니다.",
+                        "올바른 이메일 형식이 아닙니다."));
     }
 
     private ReceiverSnapshot validateReceiver(OrderCreateRequest.Receiver receiver) {
@@ -233,92 +293,107 @@ public class OrderService {
             throw new IllegalArgumentException("수령인 정보를 입력해주세요.");
         }
         return new ReceiverSnapshot(
-                requireText(receiver.name(), 50, "수령인명을 입력해주세요.", "수령인명은 50자 이하여야 합니다."),
-                requireText(receiver.phone(), 20, "수령인 연락처를 입력해주세요.", "수령인 연락처는 20자 이하여야 합니다."),
-                requireText(receiver.zipcode(), 10, "우편번호를 입력해주세요.", "우편번호는 10자 이하여야 합니다."),
-                requireText(receiver.address(), 255, "주소를 입력해주세요.", "주소는 255자 이하여야 합니다."),
-                normalizeOptional(receiver.addressDetail(), 255, "상세주소는 255자 이하여야 합니다."));
+                InputValidator.requireText(
+                        receiver.name(),
+                        50,
+                        "수령인명을 입력해주세요.",
+                        "수령인명은 50자 이하여야 합니다."),
+                InputValidator.requireText(
+                        receiver.phone(),
+                        20,
+                        "수령인 연락처를 입력해주세요.",
+                        "수령인 연락처는 20자 이하여야 합니다."),
+                InputValidator.requireText(
+                        receiver.zipcode(),
+                        10,
+                        "우편번호를 입력해주세요.",
+                        "우편번호는 10자 이하여야 합니다."),
+                InputValidator.requireText(
+                        receiver.address(),
+                        255,
+                        "주소를 입력해주세요.",
+                        "주소는 255자 이하여야 합니다."),
+                InputValidator.optionalText(
+                        receiver.addressDetail(),
+                        255,
+                        "상세주소는 255자 이하여야 합니다."));
     }
 
     /**
      * 장바구니에 담긴 당시 가격이 아닌 현재 판매 정보를 스냅샷 검증에 사용한다.
      *
-     * @param cartItems 주문 대상 장바구니 항목 목록
-     * @return 스냅샷 생성에 필요한 상품·옵션·카테고리 맵과 옵션 보유 상품 ID 집합
+     * @param inputs 장바구니 또는 즉시구매에서 변환한 주문 항목 목록
+     * @return 스냅샷 생성에 필요한 상품·옵션·카테고리 맵
      */
-    private SnapshotContext loadSnapshotContext(List<CartItem> cartItems) {
-        Set<Long> productIds = cartItems.stream()
-                .map(CartItem::getProductId)
+    private SnapshotContext loadSnapshotContext(List<SnapshotInput> inputs) {
+        Set<Long> productIds = inputs.stream()
+                .map(SnapshotInput::productId)
                 .collect(Collectors.toSet());
-        Set<Long> optionIds = cartItems.stream()
-                .map(CartItem::getProductOptionId)
-                .filter(Objects::nonNull)
+        Set<Long> optionIds = inputs.stream()
+                .map(SnapshotInput::optionId)
                 .collect(Collectors.toSet());
+        if (optionIds.contains(null)) {
+            throw new ConflictException("상품 옵션 정보를 찾을 수 없습니다.");
+        }
 
         // 주문 항목별 개별 조회를 피하도록 상품·옵션·카테고리를 종류별로 한 번씩 조회한다.
         Map<Long, Product> products = toIdMap(productRepository.findAllById(productIds), Product::getId);
-        Map<Long, ProductOption> options = optionIds.isEmpty()
-                ? Map.of() : toIdMap(productOptionRepository.findAllById(optionIds), ProductOption::getId);
-        Set<Long> productIdsWithOptions = new LinkedHashSet<>(productOptionRepository.findProductIdsWithOptions(productIds));
+        Map<Long, ProductOption> options = toIdMap(productOptionRepository.findAllById(optionIds), ProductOption::getId);
         Set<Long> categoryIds = products.values().stream()
                 .map(Product::getCategoryId)
                 .collect(Collectors.toSet());
         Map<Long, Category> categories = toIdMap(categoryRepository.findAllById(categoryIds), Category::getId);
 
-        return new SnapshotContext(products, options, categories, productIdsWithOptions);
+        return new SnapshotContext(products, options, categories);
     }
 
-    private ItemSnapshot createSnapshot(CartItem cartItem, SnapshotContext context) {
-        Product product = context.products().get(cartItem.getProductId());
+    private ItemSnapshot createSnapshot(SnapshotInput input, SnapshotContext context) {
+        Product product = context.products().get(input.productId());
         if (product == null) {
-            throw notFound("상품을 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("상품을 찾을 수 없습니다.");
         }
         if (!product.isOnSale()) {
-            throw conflict("현재 판매 중이 아닌 상품이 포함되어 있습니다.");
+            throw new ConflictException("현재 판매 중이 아닌 상품이 포함되어 있습니다.");
         }
 
-        ProductOption option = null;
-        int stockQuantity = product.getStockQuantity();
-        // 할인가가 있으면 할인가를 기준으로 하고 선택 옵션의 추가금액을 더한다.
+        if (input.optionId() == null) {
+            throw new ConflictException("상품 옵션 정보를 찾을 수 없습니다.");
+        }
+        ProductOption option = context.options().get(input.optionId());
+        if (option == null) {
+            throw new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다.");
+        }
+        if (!option.getProductId().equals(product.getId())) {
+            throw new IllegalArgumentException("상품에 속하지 않은 옵션이 포함되어 있습니다.");
+        }
+        if (!Boolean.TRUE.equals(option.getIsActive())) {
+            throw new ConflictException("현재 선택할 수 없는 상품 옵션이 포함되어 있습니다.");
+        }
+        int stockQuantity = option.getStockQuantity();
         int unitPrice = product.getDisplayPrice();
-        if (cartItem.getProductOptionId() != null) {
-            option = context.options().get(cartItem.getProductOptionId());
-            if (option == null) {
-                throw notFound("상품 옵션을 찾을 수 없습니다.");
-            }
-            if (!option.getProductId().equals(product.getId())) {
-                throw new IllegalArgumentException("상품에 속하지 않은 옵션이 포함되어 있습니다.");
-            }
-            if (!Boolean.TRUE.equals(option.getIsActive())) {
-                throw conflict("현재 선택할 수 없는 상품 옵션이 포함되어 있습니다.");
-            }
-            stockQuantity = option.getStockQuantity();
-            unitPrice = safeAdd(unitPrice, option.getExtraPrice());
-        } else if (context.productIdsWithOptions().contains(product.getId())) {
-            // 장바구니에 담은 뒤 옵션 구성이 추가된 경우 잘못된 단일 상품 주문을 차단한다.
-            throw conflict("상품 옵션을 다시 선택해주세요.");
-        }
+        unitPrice = safeAdd(unitPrice, option.getExtraPrice());
 
-        int quantity = cartItem.getQuantity();
+        int quantity = input.quantity();
         if (quantity < 1 || quantity > MAX_QUANTITY) {
             throw new IllegalArgumentException("주문수량은 1개 이상 99개 이하여야 합니다.");
         }
         if (stockQuantity < quantity) {
-            throw conflict("재고가 부족한 상품이 포함되어 있습니다.");
+            throw new ConflictException("재고가 부족한 상품이 포함되어 있습니다.");
         }
 
         Category category = context.categories().get(product.getCategoryId());
         if (category == null) {
-            throw notFound("상품 카테고리를 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("상품 카테고리를 찾을 수 없습니다.");
         }
         int lineAmount = safeMultiply(unitPrice, quantity);
         return new ItemSnapshot(
+                input.sourceCartItemId(),
                 product.getId(),
-                option == null ? null : option.getId(),
+                option.getId(),
                 product.getName(),
                 category.getId(),
                 category.getName(),
-                option == null ? null : option.getName(),
+                Boolean.TRUE.equals(option.getIsDefault()) ? null : option.getName(),
                 product.getThumbnailUrl(),
                 unitPrice,
                 quantity,
@@ -358,6 +433,7 @@ public class OrderService {
     private OrderItem toOrderItem(Long orderId, ItemSnapshot snapshot) {
         return OrderItem.builder()
                 .orderId(orderId)
+                .sourceCartItemId(snapshot.sourceCartItemId())
                 .productId(snapshot.productId())
                 .productOptionId(snapshot.optionId())
                 .productName(snapshot.productName())
@@ -396,36 +472,6 @@ public class OrderService {
                 guestOrderToken == null ? null : guestOrderToken.rawToken());
     }
 
-    private String requireText(String value, int maximumLength, String requiredMessage, String lengthMessage) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(requiredMessage);
-        }
-        String normalized = value.trim();
-        if (normalized.length() > maximumLength) {
-            throw new IllegalArgumentException(lengthMessage);
-        }
-        return normalized;
-    }
-
-    private String normalizeOptional(String value, int maximumLength, String lengthMessage) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        String normalized = value.trim();
-        if (normalized.length() > maximumLength) {
-            throw new IllegalArgumentException(lengthMessage);
-        }
-        return normalized;
-    }
-
-    private String validateEmail(String email) {
-        String normalized = normalizeOptional(email, 255, "이메일은 255자 이하여야 합니다.");
-        if (normalized != null && !EMAIL_PATTERN.matcher(normalized).matches()) {
-            throw new IllegalArgumentException("올바른 이메일 형식이 아닙니다.");
-        }
-        return normalized;
-    }
-
     private int safeAdd(int first, int second) {
         try {
             return Math.addExact(first, second);
@@ -450,14 +496,6 @@ public class OrderService {
         return result;
     }
 
-    private ResponseStatusException notFound(String message) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, message);
-    }
-
-    private ResponseStatusException conflict(String message) {
-        return new ResponseStatusException(HttpStatus.CONFLICT, message);
-    }
-
     private record OrdererSnapshot(String name, String phone, String email) {}
 
     private record ReceiverSnapshot(
@@ -471,11 +509,20 @@ public class OrderService {
     private record SnapshotContext(
             Map<Long, Product> products,
             Map<Long, ProductOption> options,
-            Map<Long, Category> categories,
-            Set<Long> productIdsWithOptions
+            Map<Long, Category> categories
     ) {}
 
+    private record SnapshotInput(
+            Long sourceCartItemId,
+            Long productId,
+            Long optionId,
+            Integer quantity
+    ) {}
+
+    private record DirectVariantKey(Long productId, Long optionId) {}
+
     private record ItemSnapshot(
+            Long sourceCartItemId,
             Long productId,
             Long optionId,
             String productName,

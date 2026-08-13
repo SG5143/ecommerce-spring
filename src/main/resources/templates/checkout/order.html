@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>주문서 작성 - Mingler</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/checkout-state.js}" defer></script>
+    <script th:src="@{/js/order-checkout.js}" defer></script>
+    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
+</head>
+<body>
+<div th:replace="~{layout/header :: header}"></div>
+
+<main class="checkout-page" id="checkout-order-page">
+    <ol class="checkout-steps" aria-label="주문 진행 단계">
+        <li class="is-current" aria-current="step">01 주문서 작성</li>
+        <li>02 결제</li>
+        <li>03 완료</li>
+    </ol>
+    <h1 class="checkout-title">ORDER</h1>
+    <p id="checkout-message" class="checkout-message" role="alert" aria-live="assertive"></p>
+
+    <div id="checkout-loading" class="checkout-loading">주문 정보를 불러오는 중입니다.</div>
+    <form id="checkout-order-form" class="checkout-layout" hidden novalidate>
+        <div class="checkout-form-column">
+            <section class="checkout-section">
+                <h2>주문자 정보</h2>
+
+                <div id="checkout-member-orderer" hidden>
+                    <div class="checkout-field">
+                        <label for="member-orderer-name">이름</label>
+                        <input type="text" id="member-orderer-name" class="checkout-input" readonly/>
+                    </div>
+                    <div class="checkout-field">
+                        <label for="member-orderer-phone">연락처</label>
+                        <input type="text" id="member-orderer-phone" class="checkout-input" readonly/>
+                    </div>
+                    <div class="checkout-field">
+                        <label for="member-orderer-email">이메일</label>
+                        <input type="text" id="member-orderer-email" class="checkout-input" readonly/>
+                    </div>
+                    <p class="checkout-help">회원 주문의 주문자 정보는 회원정보를 기준으로 저장됩니다.</p>
+                </div>
+
+                <div id="checkout-guest-orderer" hidden>
+                    <div class="checkout-field">
+                        <label for="orderer-name">이름 <span aria-hidden="true">*</span></label>
+                        <input type="text" id="orderer-name" class="checkout-input" maxlength="50" autocomplete="name"/>
+                        <p class="checkout-field-error" data-error-for="orderer-name"></p>
+                    </div>
+                    <div class="checkout-field">
+                        <label for="orderer-phone">연락처 <span aria-hidden="true">*</span></label>
+                        <input type="tel" id="orderer-phone" class="checkout-input" maxlength="20" autocomplete="tel"/>
+                        <p class="checkout-field-error" data-error-for="orderer-phone"></p>
+                    </div>
+                    <div class="checkout-field">
+                        <label for="orderer-email">이메일</label>
+                        <input type="email" id="orderer-email" class="checkout-input" maxlength="255" autocomplete="email"/>
+                        <p class="checkout-field-error" data-error-for="orderer-email"></p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="checkout-section">
+                <div class="checkout-section-head">
+                    <h2>배송 정보</h2>
+                    <label id="checkout-copy-orderer-label" class="checkout-copy-label" hidden>
+                        <input type="checkbox" id="checkout-copy-orderer"/>
+                        주문자 정보와 동일
+                    </label>
+                </div>
+                <div class="checkout-field">
+                    <label for="receiver-name">수령인 <span aria-hidden="true">*</span></label>
+                    <input type="text" id="receiver-name" class="checkout-input" maxlength="50" autocomplete="shipping name"/>
+                    <p class="checkout-field-error" data-error-for="receiver-name"></p>
+                </div>
+                <div class="checkout-field">
+                    <label for="receiver-phone">연락처 <span aria-hidden="true">*</span></label>
+                    <input type="tel" id="receiver-phone" class="checkout-input" maxlength="20" autocomplete="shipping tel"/>
+                    <p class="checkout-field-error" data-error-for="receiver-phone"></p>
+                </div>
+                <div class="checkout-field">
+                    <label for="receiver-zipcode">우편번호 <span aria-hidden="true">*</span></label>
+                    <div class="checkout-inline">
+                        <input type="text" id="receiver-zipcode" class="checkout-input" maxlength="10" autocomplete="shipping postal-code" readonly/>
+                        <button type="button" id="checkout-zipcode-search" class="checkout-inline-btn">주소 검색</button>
+                    </div>
+                    <p class="checkout-field-error" data-error-for="receiver-zipcode"></p>
+                </div>
+                <div class="checkout-field">
+                    <label for="receiver-address">기본주소 <span aria-hidden="true">*</span></label>
+                    <input type="text" id="receiver-address" class="checkout-input" maxlength="255" autocomplete="shipping address-line1" readonly/>
+                    <p class="checkout-field-error" data-error-for="receiver-address"></p>
+                </div>
+                <div class="checkout-field">
+                    <label for="receiver-address-detail">상세주소</label>
+                    <input type="text" id="receiver-address-detail" class="checkout-input" maxlength="255" autocomplete="shipping address-line2"/>
+                    <p class="checkout-field-error" data-error-for="receiver-address-detail"></p>
+                </div>
+                <div class="checkout-field">
+                    <label for="delivery-message">배송 요청사항</label>
+                    <textarea id="delivery-message" class="checkout-input checkout-textarea" maxlength="255" rows="3"></textarea>
+                    <p class="checkout-counter"><span id="delivery-message-length">0</span>/255</p>
+                    <p class="checkout-field-error" data-error-for="delivery-message"></p>
+                </div>
+            </section>
+        </div>
+
+        <aside class="checkout-summary">
+            <h2>주문 상품</h2>
+            <ul id="checkout-order-items" class="checkout-order-items"></ul>
+            <dl class="checkout-totals">
+                <div>
+                    <dt>예상 상품금액</dt>
+                    <dd id="checkout-merchandise-total">₩0</dd>
+                </div>
+                <div>
+                    <dt>배송비</dt>
+                    <dd>₩0</dd>
+                </div>
+                <div class="checkout-total-final">
+                    <dt>예상 결제금액</dt>
+                    <dd id="checkout-total-amount">₩0</dd>
+                </div>
+            </dl>
+            <p class="checkout-summary-note">가격과 재고는 주문서 생성 시 서버에서 다시 확인됩니다.</p>
+            <button type="submit" id="checkout-order-submit" class="checkout-primary-btn">주문서 생성</button>
+            <a th:href="@{/cart}" id="checkout-return-link" class="checkout-secondary-link">장바구니로 돌아가기</a>
+        </aside>
+    </form>
+
+    <div class="modal-overlay" id="checkout-zipcode-overlay">
+        <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="checkout-zipcode-title">
+            <button type="button" class="modal-close" id="checkout-zipcode-close" aria-label="닫기">&times;</button>
+            <h2 class="modal-title" id="checkout-zipcode-title">우편번호 검색</h2>
+            <div id="checkout-zipcode-embed" class="zipcode-search-embed"></div>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{layout/footer :: footer}"></div>
+</body>
+</html>

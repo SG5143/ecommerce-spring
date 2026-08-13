@@ -43,9 +43,6 @@ public class Product {
     @Column(name = "sale_price")
     private Integer salePrice;
 
-    @Column(name = "stock_quantity", nullable = false)
-    private Integer stockQuantity;
-
     @Column(nullable = false, length = 20)
     private String status;
 
@@ -68,13 +65,12 @@ public class Product {
 
     @Builder
     private Product(Long categoryId, String name, String description, Integer price,
-                    Integer salePrice, Integer stockQuantity, String thumbnailUrl) {
+                    Integer salePrice, String thumbnailUrl) {
         this.categoryId = categoryId;
         this.name = name;
         this.description = description;
         this.price = price;
         this.salePrice = salePrice;
-        this.stockQuantity = stockQuantity != null ? stockQuantity : 0;
         this.status = STATUS_ON_SALE;
         this.thumbnailUrl = thumbnailUrl;
         this.viewCount = 0;

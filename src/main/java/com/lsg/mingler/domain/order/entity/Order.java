@@ -98,6 +98,9 @@ public class Order {
     @Column(name = "returned_at")
     private LocalDateTime returnedAt;
 
+    @Column(name = "expired_at")
+    private LocalDateTime expiredAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -144,6 +147,7 @@ public class Order {
             case CANCELLED -> this.cancelledAt = now;
             case RETURN_REQUESTED -> this.returnRequestedAt = now;
             case RETURNED -> this.returnedAt = now;
+            case EXPIRED -> this.expiredAt = now;
             case PENDING_PAYMENT, PREPARING -> {
             }
         }

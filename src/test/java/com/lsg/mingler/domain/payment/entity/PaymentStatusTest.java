@@ -10,7 +10,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PaymentStatusTest {
 
     private static final Map<PaymentStatus, Set<PaymentStatus>> ALLOWED_TRANSITIONS = Map.of(
-            PaymentStatus.PENDING, Set.of(PaymentStatus.SUCCESS, PaymentStatus.FAILED, PaymentStatus.CANCELLED),
+            PaymentStatus.PENDING, Set.of(PaymentStatus.PROCESSING, PaymentStatus.CANCELLED),
+            PaymentStatus.PROCESSING, Set.of(PaymentStatus.SUCCESS, PaymentStatus.FAILED, PaymentStatus.CANCELLED),
             PaymentStatus.SUCCESS, Set.of(PaymentStatus.REFUND_PENDING),
             PaymentStatus.FAILED, Set.of(),
             PaymentStatus.CANCELLED, Set.of(),
@@ -65,6 +66,7 @@ class PaymentStatusTest {
                 .paymentMethod("CARD")
                 .amount(10000)
                 .build();
+        payment.changeStatus(PaymentStatus.PROCESSING);
         payment.changeStatus(PaymentStatus.SUCCESS);
 
         assertThatThrownBy(() -> payment.changeStatus(PaymentStatus.FAILED))

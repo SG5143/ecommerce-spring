@@ -6,6 +6,7 @@
     <title>장바구니 - Mingler</title>
     <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <script th:src="@{/js/checkout-state.js}" defer></script>
     <script th:src="@{/js/cart.js}" defer></script>
 </head>
 <body>
@@ -29,7 +30,7 @@
             <span>선택 상품금액</span>
             <strong id="cart-selected-total">₩0</strong>
         </div>
-        <button type="button" class="cart-checkout-btn not-implemented">CHECKOUT (준비 중)</button>
+        <button type="button" id="cart-checkout" class="cart-checkout-btn" disabled>CHECKOUT</button>
     </section>
     <div id="cart-empty" class="cart-empty" hidden>
         <p>장바구니가 비어 있습니다.</p>

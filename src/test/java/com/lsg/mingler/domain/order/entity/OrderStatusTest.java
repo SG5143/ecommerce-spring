@@ -10,14 +10,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class OrderStatusTest {
 
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
-            OrderStatus.PENDING_PAYMENT, Set.of(OrderStatus.PAID, OrderStatus.CANCELLED),
+            OrderStatus.PENDING_PAYMENT, Set.of(OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.EXPIRED),
             OrderStatus.PAID, Set.of(OrderStatus.PREPARING, OrderStatus.CANCELLED),
             OrderStatus.PREPARING, Set.of(OrderStatus.SHIPPING, OrderStatus.CANCELLED),
             OrderStatus.SHIPPING, Set.of(OrderStatus.DELIVERED),
             OrderStatus.DELIVERED, Set.of(OrderStatus.RETURN_REQUESTED),
             OrderStatus.RETURN_REQUESTED, Set.of(OrderStatus.RETURNED),
             OrderStatus.CANCELLED, Set.of(),
-            OrderStatus.RETURNED, Set.of()
+            OrderStatus.RETURNED, Set.of(),
+            OrderStatus.EXPIRED, Set.of()
     );
 
     @Test
@@ -47,6 +48,18 @@ class OrderStatusTest {
             assertThat(status.canTransitionTo(status)).isFalse();
             assertThat(status.canTransitionTo(null)).isFalse();
         }
+    }
+
+    @Test
+    void 결제대기_주문만_만료할_수_있고_만료시각을_기록한다() {
+        Order order = order();
+
+        order.changeStatus(OrderStatus.EXPIRED);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.EXPIRED);
+        assertThat(order.getExpiredAt()).isNotNull();
+        assertThat(OrderStatus.PAID.canTransitionTo(OrderStatus.EXPIRED)).isFalse();
+        assertThat(OrderStatus.EXPIRED.canTransitionTo(OrderStatus.PAID)).isFalse();
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.lsg.mingler.global.error;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,6 +23,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse(e.getMessage()));
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
+        log.info("요청 본문 변환 실패 (400): {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("요청 본문이 올바르지 않습니다."));
+    }
+
     @ExceptionHandler(DuplicateException.class)
     public ResponseEntity<ErrorResponse> handleDuplicate(DuplicateException e) {
         log.info("중복 요청 (409): {}", e.getMessage());
@@ -32,6 +40,36 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException e) {
         log.info("인증 실패 (401): {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(e.getMessage()));
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException e) {
+        log.info("리소스 조회 실패 (404): {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException e) {
+        log.info("요청 충돌 (409): {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
+    }
+
+    @ExceptionHandler(PaymentDeclinedException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentDeclined(PaymentDeclinedException e) {
+        log.info("결제 승인 거절 (402): {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(new ErrorResponse(e.getMessage()));
+    }
+
+    @ExceptionHandler(PaymentApprovalTimeoutException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentApprovalTimeout(PaymentApprovalTimeoutException e) {
+        log.info("결제 승인 지연 (504): {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(new ErrorResponse(e.getMessage()));
+    }
+
+    @ExceptionHandler(PaymentGatewayDeclinedException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentGatewayDeclined(PaymentGatewayDeclinedException e) {
+        log.info("PG 결제 승인 거절 (402): code={}, message={}", e.getFailureCode(), e.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(new ErrorResponse(e.getMessage()));
     }
 
     /**

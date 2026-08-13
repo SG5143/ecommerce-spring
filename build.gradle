@@ -65,4 +65,7 @@ hibernate {
 
 tasks.named('test') {
     useJUnitPlatform()
+    testLogging {
+        showStandardStreams = true
+    }
 }

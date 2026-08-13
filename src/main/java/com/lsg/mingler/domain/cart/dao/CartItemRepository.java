@@ -24,7 +24,7 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
     @Query("""
             SELECT i FROM CartItem i
             WHERE i.cartId = :cartId AND i.productId = :productId
-              AND ((:optionId IS NULL AND i.productOptionId IS NULL) OR i.productOptionId = :optionId)
+              AND i.productOptionId = :optionId
             """)
     Optional<CartItem> findVariant(@Param("cartId") Long cartId,
                                    @Param("productId") Long productId,

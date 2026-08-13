@@ -11,7 +11,8 @@ public enum OrderStatus {
     DELIVERED,       // 배송 완료
     CANCELLED,       // 주문 취소
     RETURN_REQUESTED,// 반품 요청
-    RETURNED;        // 반품 완료
+    RETURNED,        // 반품 완료
+    EXPIRED;         // 결제 기한 만료
 
     private static final Set<OrderStatus> NO_TRANSITIONS = Set.of();
 
@@ -33,13 +34,13 @@ public enum OrderStatus {
 
     private Set<OrderStatus> allowedTransitions() {
         return switch (this) {
-            case PENDING_PAYMENT -> EnumSet.of(PAID, CANCELLED);
+            case PENDING_PAYMENT -> EnumSet.of(PAID, CANCELLED, EXPIRED);
             case PAID -> EnumSet.of(PREPARING, CANCELLED);
             case PREPARING -> EnumSet.of(SHIPPING, CANCELLED);
             case SHIPPING -> EnumSet.of(DELIVERED);
             case DELIVERED -> EnumSet.of(RETURN_REQUESTED);
             case RETURN_REQUESTED -> EnumSet.of(RETURNED);
-            case CANCELLED, RETURNED -> NO_TRANSITIONS;
+            case CANCELLED, RETURNED, EXPIRED -> NO_TRANSITIONS;
         };
     }
 }

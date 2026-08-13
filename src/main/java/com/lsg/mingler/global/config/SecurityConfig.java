@@ -35,7 +35,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // SSR 페이지 & 정적 리소스
-                        .requestMatchers("/", "/login", "/signup", "/cart", "/myshop", "/myshop/**", "/categories/**", "/products/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/", "/login", "/signup", "/cart", "/checkout", "/checkout/**", "/myshop", "/myshop/**", "/categories/**", "/products/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                         // 회원 본인 정보(요약·상세)는 인증 필요
                         .requestMatchers("/api/v1/members/me", "/api/v1/members/me/**").authenticated()
                         // 인증 불필요 API: 회원가입/아이디 중복확인, 로그인/재발급/로그아웃
@@ -44,8 +44,11 @@ public class SecurityConfig {
                         // 장바구니는 회원·비회원 공용. 병합만 로그인 회원으로 제한
                         .requestMatchers(HttpMethod.POST, "/api/v1/cart/merge").authenticated()
                         .requestMatchers("/api/v1/cart", "/api/v1/cart/**").permitAll()
-                        // 주문서 생성은 회원·비회원 공용
+                        // 주문내역은 로그인 회원 전용, 주문서 생성은 회원·비회원 공용
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders").permitAll()
+                        // 결제 API는 회원 JWT 또는 비회원 주문 토큰으로 서비스 계층에서 소유권 확인
+                        .requestMatchers("/api/v1/payments/**").permitAll()
                         // 그 외 API 는 인증 필요 (ADMIN 전용 경로는 향후 hasRole 규칙 추가 예정)
                         .anyRequest().authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)

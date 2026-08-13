@@ -7,6 +7,7 @@ import com.lsg.mingler.domain.product.dto.ProductCard;
 import com.lsg.mingler.domain.product.dto.ProductDetail;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductImage;
+import com.lsg.mingler.domain.product.entity.ProductOption;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -59,15 +60,25 @@ public class ProductService {
             imageUrls = List.of(product.getThumbnailUrl());
         }
 
-        List<ProductDetail.Option> options =
-                productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(id).stream()
-                        .map(option -> new ProductDetail.Option(option.getId(), option.getName(),
-                                option.getExtraPrice(), option.getStockQuantity()))
-                        .toList();
+        List<ProductOption> activeOptions =
+                productOptionRepository.findAllByProductIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(id);
+        ProductOption defaultOption = activeOptions.stream()
+                .filter(option -> Boolean.TRUE.equals(option.getIsDefault()))
+                .findFirst()
+                .orElse(null);
+        List<ProductDetail.Option> options = activeOptions.stream()
+                .filter(option -> !Boolean.TRUE.equals(option.getIsDefault()))
+                .map(option -> new ProductDetail.Option(option.getId(), option.getName(),
+                        option.getExtraPrice(), option.getStockQuantity()))
+                .toList();
+        boolean soldOut = !product.isOnSale() || (defaultOption != null
+                ? defaultOption.isSoldOut()
+                : options.isEmpty() || options.stream().allMatch(ProductDetail.Option::soldOut));
 
         return new ProductDetail(product.getId(), product.getCategoryId(), product.getName(),
                 product.getDescription(), product.getPrice(), product.getSalePrice(),
-                product.getStockQuantity(), !product.isOnSale(), imageUrls, options);
+                defaultOption == null ? 0 : defaultOption.getStockQuantity(), soldOut, imageUrls, options,
+                defaultOption == null ? null : defaultOption.getId());
     }
 
     private List<ProductCard> toCards(List<Product> products) {

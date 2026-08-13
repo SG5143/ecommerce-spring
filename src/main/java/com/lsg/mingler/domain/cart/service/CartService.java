@@ -11,6 +11,8 @@ import com.lsg.mingler.domain.product.dao.ProductOptionRepository;
 import com.lsg.mingler.domain.product.dao.ProductRepository;
 import com.lsg.mingler.domain.product.entity.Product;
 import com.lsg.mingler.domain.product.entity.ProductOption;
+import com.lsg.mingler.global.error.ConflictException;
+import com.lsg.mingler.global.error.ResourceNotFoundException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,15 +20,15 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 회원 및 비회원 장바구니의 조회, 상품 변경, 로그인 병합, 만료 정리를 담당한다.
@@ -140,12 +142,25 @@ public class CartService {
     public CartResponse updateQuantity(Long memberId, String guestTokenHash, Long itemId, Integer quantity) {
         validateQuantity(quantity);
         Cart cart = requireCart(memberId, guestTokenHash);
-        CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), itemId).orElseThrow(() -> notFound("장바구니 상품을 찾을 수 없습니다."));
-        ValidatedVariant variant = validateVariant(new VariantKey(item.getProductId(), item.getProductOptionId()), quantity);
-        validateQuantityAgainstStock(quantity, variant.stockQuantity());
+        // 전체 응답에 필요한 항목을 먼저 조회하고 같은 목록에서 수정 대상을 찾아 단건 중복 조회를 피한다.
+        List<CartItem> cartItems = cartItemRepository.findAllByCartIdOrderByCreatedAtAscIdAsc(cart.getId());
+        CartItem item = cartItems.stream()
+                .filter(cartItem -> cartItem.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("장바구니 상품을 찾을 수 없습니다."));
+
+        Map<Long, Product> productsById = loadProductsById(cartItems);
+        Map<Long, ProductOption> optionsById = loadOptionsById(cartItems);
+        VariantKey key = new VariantKey(item.getProductId(), item.getProductOptionId());
+        Product product = Optional.ofNullable(productsById.get(key.productId()))
+                .orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다."));
+        ProductOption option = Optional.ofNullable(optionsById.get(key.optionId()))
+                .orElseThrow(() -> new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다."));
+        validateVariant(key, quantity, product, option);
+
         item.changeQuantity(quantity);
         extendGuestExpiration(cart);
-        return toResponse(cart);
+        return toResponse(cartItems, productsById, optionsById);
     }
 
     /**
@@ -170,7 +185,7 @@ public class CartService {
         // 개별 조회 N회를 피하면서 다른 장바구니 항목이 섞였는지도 함께 확인한다.
         List<CartItem> ownedItems = cartItemRepository.findAllByCartIdAndIdIn(cart.getId(), distinctIds);
         if (ownedItems.size() != distinctIds.size()) {
-            throw notFound("장바구니 상품을 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("장바구니 상품을 찾을 수 없습니다.");
         }
         cartItemRepository.deleteAllByCartIdAndIdIn(cart.getId(), distinctIds);
         extendGuestExpiration(cart);
@@ -259,7 +274,7 @@ public class CartService {
 
         Map<VariantKey, Integer> normalized = new LinkedHashMap<>();
         for (CartItemsAddRequest.Item item : request.items()) {
-            if (item == null || item.productId() == null) {
+            if (item == null || item.productId() == null || item.optionId() == null) {
                 throw new IllegalArgumentException("상품 정보가 올바르지 않습니다.");
             }
             validateQuantity(item.quantity());
@@ -279,40 +294,36 @@ public class CartService {
     }
 
     /**
-     * 상품·옵션 관계와 판매 상태를 검증하고 재고 및 현재 단가를 계산한다.
-     * 옵션 상품은 활성 옵션 재고를, 단일 구성 상품은 상품 재고를 사용한다.
+     * 상품·옵션 관계와 판매 상태를 검증하고 옵션 재고 및 현재 단가를 계산한다.
      */
     private ValidatedVariant validateVariant(VariantKey key, int requestedQuantity) {
-        Product product = productRepository.findById(key.productId()).orElseThrow(() -> notFound("상품을 찾을 수 없습니다."));
+        Product product = productRepository.findById(key.productId())
+                .orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다."));
+        if (key.optionId() == null) {
+            throw new IllegalArgumentException("상품 옵션을 선택해주세요.");
+        }
+        ProductOption option = productOptionRepository.findById(key.optionId())
+                .orElseThrow(() -> new ResourceNotFoundException("상품 옵션을 찾을 수 없습니다."));
+
+        return validateVariant(key, requestedQuantity, product, option);
+    }
+
+    /** 이미 조회한 상품·옵션의 판매 가능 상태와 재고를 검증한다. */
+    private ValidatedVariant validateVariant(
+            VariantKey key, int requestedQuantity, Product product, ProductOption option) {
         if (!product.isOnSale()) {
-            throw conflict("현재 판매 중인 상품이 아닙니다.");
+            throw new ConflictException("현재 판매 중인 상품이 아닙니다.");
         }
 
-        boolean hasOptions = productOptionRepository.existsByProductId(product.getId());
-        ProductOption option = null;
-        int stockQuantity;
         int currentUnitPrice = product.getDisplayPrice();
-
-        // 옵션 존재 여부를 기준으로 옵션 필수/금지 규칙을 대칭적으로 적용한다.
-        if (hasOptions) {
-            if (key.optionId() == null) {
-                throw new IllegalArgumentException("상품 옵션을 선택해주세요.");
-            }
-            option = productOptionRepository.findById(key.optionId()).orElseThrow(() -> notFound("상품 옵션을 찾을 수 없습니다."));
-            if (!product.getId().equals(option.getProductId())) {
-                throw new IllegalArgumentException("상품에 속하지 않은 옵션입니다.");
-            }
-            if (!Boolean.TRUE.equals(option.getIsActive())) {
-                throw conflict("현재 선택할 수 없는 상품 옵션입니다.");
-            }
-            stockQuantity = option.getStockQuantity();
-            currentUnitPrice += option.getExtraPrice();
-        } else {
-            if (key.optionId() != null) {
-                throw new IllegalArgumentException("옵션이 없는 상품입니다.");
-            }
-            stockQuantity = product.getStockQuantity();
+        if (!product.getId().equals(option.getProductId())) {
+            throw new IllegalArgumentException("상품에 속하지 않은 옵션입니다.");
         }
+        if (!Boolean.TRUE.equals(option.getIsActive())) {
+            throw new ConflictException("현재 선택할 수 없는 상품 옵션입니다.");
+        }
+        int stockQuantity = option.getStockQuantity();
+        currentUnitPrice += option.getExtraPrice();
 
         validateQuantityAgainstStock(requestedQuantity, stockQuantity);
         return new ValidatedVariant(key, requestedQuantity, stockQuantity, currentUnitPrice, product, option);
@@ -321,10 +332,11 @@ public class CartService {
     /** 요청 수량이 품절 상태 또는 현재 재고를 초과하는지 검증한다. */
     private void validateQuantityAgainstStock(int quantity, int stockQuantity) {
         if (stockQuantity <= 0) {
-            throw conflict("품절된 상품입니다.");
+            throw new ConflictException("품절된 상품입니다.");
         }
         if (quantity > stockQuantity) {
-            throw conflict("재고가 부족합니다. 최대 " + stockQuantity + "개까지 담을 수 있습니다.");
+            throw new ConflictException(
+                    "재고가 부족합니다. 최대 " + stockQuantity + "개까지 담을 수 있습니다.");
         }
     }
 
@@ -355,7 +367,8 @@ public class CartService {
 
     /** 변경 작업을 위해 장바구니를 잠금 조회하고, 없거나 만료됐으면 404 예외를 발생시킨다. */
     private Cart requireCart(Long memberId, String guestTokenHash) {
-        return findCart(memberId, guestTokenHash, true).orElseThrow(() -> notFound("장바구니를 찾을 수 없습니다."));
+        return findCart(memberId, guestTokenHash, true)
+                .orElseThrow(() -> new ResourceNotFoundException("장바구니를 찾을 수 없습니다."));
     }
 
     /**
@@ -408,7 +421,7 @@ public class CartService {
         try {
             ValidatedVariant variant = validateVariant(new VariantKey(item.getProductId(), item.getProductOptionId()), 1);
             return Math.min(variant.stockQuantity(), MAX_ITEM_QUANTITY);
-        } catch (ResponseStatusException | IllegalArgumentException e) {
+        } catch (ResourceNotFoundException | ConflictException | IllegalArgumentException e) {
             return MAX_ITEM_QUANTITY;
         }
     }
@@ -423,29 +436,49 @@ public class CartService {
             return CartResponse.empty();
         }
 
-        // 응답 변환 중 항목별 조회가 발생하지 않도록 연관 상품과 옵션을 한 번에 조회한다.
-        Set<Long> productIds = new LinkedHashSet<>();
-        Set<Long> optionIds = new LinkedHashSet<>();
-        for (CartItem item : cartItems) {
-            productIds.add(item.getProductId());
-            if (item.getProductOptionId() != null) {
-                optionIds.add(item.getProductOptionId());
-            }
-        }
+        return toResponse(cartItems, loadProductsById(cartItems), loadOptionsById(cartItems));
+    }
 
+    /** 장바구니 항목에 필요한 상품을 중복 없이 일괄 조회해 ID Map으로 반환한다. */
+    private Map<Long, Product> loadProductsById(List<CartItem> cartItems) {
+        Set<Long> productIds = cartItems.stream()
+                .map(CartItem::getProductId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<Long, Product> productsById = new LinkedHashMap<>();
-        productRepository.findAllById(productIds).forEach(product -> productsById.put(product.getId(), product));
+        if (!productIds.isEmpty()) {
+            productRepository.findAllById(productIds)
+                    .forEach(product -> productsById.put(product.getId(), product));
+        }
+        return productsById;
+    }
+
+    /** 장바구니 항목에 필요한 옵션을 중복 없이 일괄 조회해 ID Map으로 반환한다. */
+    private Map<Long, ProductOption> loadOptionsById(List<CartItem> cartItems) {
+        Set<Long> optionIds = cartItems.stream()
+                .map(CartItem::getProductOptionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<Long, ProductOption> optionsById = new LinkedHashMap<>();
         if (!optionIds.isEmpty()) {
-            productOptionRepository.findAllById(optionIds).forEach(option -> optionsById.put(option.getId(), option));
+            productOptionRepository.findAllById(optionIds)
+                    .forEach(option -> optionsById.put(option.getId(), option));
         }
-        Set<Long> productIdsWithOptions = new LinkedHashSet<>(productOptionRepository.findProductIdsWithOptions(productIds));
+        return optionsById;
+    }
+
+    /** 이미 조회한 항목·상품·옵션으로 추가 DB 조회 없이 전체 장바구니 응답을 만든다. */
+    private CartResponse toResponse(
+            List<CartItem> cartItems,
+            Map<Long, Product> productsById,
+            Map<Long, ProductOption> optionsById) {
+        if (cartItems.isEmpty()) {
+            return CartResponse.empty();
+        }
 
         List<CartResponse.Item> items = cartItems.stream()
                 .map(item -> toResponseItem(item,
                         productsById.get(item.getProductId()),
-                        optionsById.get(item.getProductOptionId()),
-                        productIdsWithOptions.contains(item.getProductId())))
+                        optionsById.get(item.getProductOptionId())))
                 .toList();
         int totalQuantity = items.stream().mapToInt(CartResponse.Item::quantity).sum();
         long merchandiseTotal = items.stream()
@@ -459,9 +492,9 @@ public class CartService {
      * 저장 당시 정보와 현재 상품 정보를 조합해 단일 장바구니 응답 항목을 만든다.
      * 삭제·판매 중지·옵션 변경·재고 부족 상태도 항목을 제거하지 않고 구매 불가 사유로 표현한다.
      */
-    private CartResponse.Item toResponseItem(CartItem item, Product product, ProductOption option, boolean productHasOptions) {
+    private CartResponse.Item toResponseItem(CartItem item, Product product, ProductOption option) {
         String productName = product == null ? "삭제된 상품" : product.getName();
-        String optionName = option == null ? null : option.getName();
+        String optionName = option == null || Boolean.TRUE.equals(option.getIsDefault()) ? null : option.getName();
         String thumbnailUrl = product == null ? null : product.getThumbnailUrl();
         int currentUnitPrice = item.getUnitPriceAtAdded();
         int stockQuantity = 0;
@@ -472,15 +505,12 @@ public class CartService {
             unavailableReason = "판매 중지된 상품입니다.";
         } else if (!product.isOnSale()) {
             unavailableReason = "현재 판매 중인 상품이 아닙니다.";
-        } else if (item.getProductOptionId() != null
-                && (option == null || !product.getId().equals(option.getProductId())
-                || !Boolean.TRUE.equals(option.getIsActive()))) {
+        } else if (option == null || !product.getId().equals(option.getProductId())
+                || !Boolean.TRUE.equals(option.getIsActive())) {
             unavailableReason = "현재 선택할 수 없는 옵션입니다.";
-        } else if (item.getProductOptionId() == null && productHasOptions) {
-            unavailableReason = "상품 옵션을 다시 선택해주세요.";
         } else {
-            currentUnitPrice = product.getDisplayPrice() + (option == null ? 0 : option.getExtraPrice());
-            stockQuantity = option == null ? product.getStockQuantity() : option.getStockQuantity();
+            currentUnitPrice = product.getDisplayPrice() + option.getExtraPrice();
+            stockQuantity = option.getStockQuantity();
             if (stockQuantity <= 0) {
                 unavailableReason = "품절된 상품입니다.";
             } else if (item.getQuantity() > stockQuantity) {
@@ -500,16 +530,6 @@ public class CartService {
     private boolean sameVariant(CartItem item, VariantKey key) {
         return item.getProductId().equals(key.productId())
                 && java.util.Objects.equals(item.getProductOptionId(), key.optionId());
-    }
-
-    /** 서비스 검증 실패를 HTTP 404 예외로 변환한다. */
-    private ResponseStatusException notFound(String message) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, message);
-    }
-
-    /** 현재 상품 상태와 요청이 충돌하는 상황을 HTTP 409 예외로 변환한다. */
-    private ResponseStatusException conflict(String message) {
-        return new ResponseStatusException(HttpStatus.CONFLICT, message);
     }
 
     /** 상품과 선택 옵션 조합을 중복 제거 및 조회 키로 사용하는 값 객체 */

@@ -26,6 +26,9 @@ public class OrderItem {
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
+    @Column(name = "source_cart_item_id")
+    private Long sourceCartItemId;
+
     @Column(name = "product_id", nullable = false)
     private Long productId;
 
@@ -61,11 +64,12 @@ public class OrderItem {
     private LocalDateTime createdAt;
 
     @Builder
-    private OrderItem(Long orderId, Long productId, Long productOptionId,
+    private OrderItem(Long orderId, Long sourceCartItemId, Long productId, Long productOptionId,
                       String productName, Long categoryId, String categoryName,
                       String optionName, String thumbnailUrl, Integer unitPrice,
                       Integer quantity, Integer lineAmount) {
         this.orderId = orderId;
+        this.sourceCartItemId = sourceCartItemId;
         this.productId = productId;
         this.productOptionId = productOptionId;
         this.productName = productName;

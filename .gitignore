@@ -5,6 +5,9 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+### macOS ###
+.DS_Store
+
 ### STS ###
 .apt_generated
 .classpath
@@ -43,9 +46,9 @@ application-local.properties
 
 ### Load testing ###
 .venv-locust/
-loadtest/locustfile.py
 loadtest/results/
-loadtest/__pycache__/
+loadtest/**/__pycache__/
+loadtest/**/*.pyc
 
 ### Claude 지침과 이력들 ###
 .claude/
