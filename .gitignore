@@ -39,10 +39,11 @@ out/
 ### VS Code ###
 .vscode/
 
-### Local profile ###
-application-local.yml
-application-local.yaml
-application-local.properties
+### Environment secrets ###
+.env
+.env.*
+!.env.example
+secrets/
 
 ### Load testing ###
 .venv-locust/
@@ -50,11 +51,7 @@ loadtest/results/
 loadtest/**/__pycache__/
 loadtest/**/*.pyc
 
-### Claude 지침과 이력들 ###
-.claude/
-CLAUDE.md
-
-### Codex 지침과 이력들 ###
+### Codex ###
 .agents/
 AGENTS.md
 

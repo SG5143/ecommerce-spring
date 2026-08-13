@@ -2,13 +2,7 @@ spring:
   application:
     name: Mingler
   profiles:
-    active: local
-
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: "jdbc:mysql://localhost:3306/mingler?serverTimezone=Asia/Seoul"
-    username: root
-    password: root
+    default: local
 
   jpa:
     hibernate:
@@ -17,7 +11,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
+    baseline-on-migrate: false
     baseline-version: 1
   sql:
     init:
@@ -27,54 +21,49 @@ spring:
   mvc:
     log-resolved-exception: false
 
-# 시작 시 HikariCP 커넥션 풀의 실제 설정값(maximumPoolSize, autoCommit 등)을 로그로 출력
-logging:
-  level:
-    com.zaxxer.hikari.HikariConfig: debug
-    org.hibernate.SQL: debug
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 # JWT 설정
-# secret 은 HS256 서명용 256bit 이상 Base64 문자열이어야 한다.
 jwt:
-  secret: "change-me-to-a-base64-encoded-256bit-secret-key-value-here=="
-  access-token-validity: PT30M   # Access 토큰 수명 (짧게 유지해 탈취 피해 최소화)
-  refresh-token-validity: P14D   # Refresh 토큰 수명
+  access-token-validity: PT30M
+  refresh-token-validity: P14D
 
 payment:
   # 레거시 준비 요청에 paymentProvider가 없을 때 사용할 기본값입니다.
-  # 새 결제 화면은 test_ck_·test_sk_ 형식의 Toss 테스트 키가 있으면 Toss와 가상결제를 함께 제공합니다.
-  # 라이브 키 결제는 현재 비활성화되어 있습니다.
-  provider: ${PAYMENT_PROVIDER:virtual}
+  provider: ${PAYMENT_PROVIDER:toss}
   toss:
-    # 브라우저의 토스 결제 SDK 초기화에 사용되는 공개 가능한 클라이언트 키입니다.
     client-key: ${TOSS_CLIENT_KEY:}
-    # 승인·조회 API 인증에 사용하는 서버 전용 키입니다. 클라이언트 코드나 로그에 노출하면 안 됩니다.
     secret-key: ${TOSS_SECRET_KEY:}
-    # 토스페이먼츠 Core API 기본 주소입니다.
     base-url: https://api.tosspayments.com
-    # 테스트 오류 재현용 코드입니다. local 프로필과 테스트 키를 사용할 때만 요청에 포함됩니다.
     test-code: ${TOSS_TEST_CODE:}
-    # 토스 API 서버와 연결을 맺을 때까지 기다리는 최대 시간입니다.
+    # 토스 API 서버와 연결을 맺을 때까지 기다리는 최대 시간
     connect-timeout: ${TOSS_CONNECT_TIMEOUT:PT3S}
-    # 연결 후 토스 API 응답을 기다리는 최대 시간입니다.
+    # 연결 후 토스 API 응답을 기다리는 최대 시간
     read-timeout: ${TOSS_READ_TIMEOUT:PT10S}
   reconciliation:
-    # 결과가 불명확한 PROCESSING 결제를 다시 조회하는 작업의 실행 간격입니다.
+    # 결과가 불명확한 PROCESSING 결제를 다시 조회하는 작업의 실행 간격
     fixed-delay: ${PAYMENT_RECONCILE_FIXED_DELAY:PT30S}
-    # PROCESSING 전환 후 이 시간이 지난 결제부터 재조정 대상으로 조회합니다.
+    # PROCESSING 전환 후 이 시간이 지난 결제부터 재조정 대상으로 조회
     processing-age: ${PAYMENT_RECONCILE_PROCESSING_AGE:PT10S}
-    # 결제를 찾을 수 없는 상태가 이 시간 이상 지속되면 만료 실패로 확정합니다.
+    # 결제를 찾을 수 없는 상태가 이 시간 이상 지속되면 만료 실패로 확정
     expiry-grace: ${PAYMENT_RECONCILE_EXPIRY_GRACE:PT15M}
-    # 결제창 인증을 시작하지 않은 PENDING 준비 건을 취소할 때 적용하는 유효시간입니다.
+    # 결제창 인증을 시작하지 않은 PENDING 준비 건을 취소할 때 적용하는 유효시간
     preparation-ttl: ${PAYMENT_PREPARATION_TTL:PT30M}
-    # 재조정 작업 한 번에 처리할 최대 결제 건수입니다.
+    # 재조정 작업 한 번에 처리할 최대 결제 건수
     batch-size: ${PAYMENT_RECONCILE_BATCH_SIZE:100}
 
 order:
   expiration:
-    # 주문 생성 후 결제를 시작하거나 완료할 수 있는 최대 시간입니다.
+    # 주문 생성 후 결제를 시작하거나 완료할 수 있는 최대 시간
     ttl: ${ORDER_EXPIRATION_TTL:PT30M}
-    # 오래된 결제 대기 주문을 정리하는 주기입니다.
+    # 오래된 결제 대기 주문을 정리하는 주기
     fixed-delay: ${ORDER_EXPIRATION_FIXED_DELAY:PT1M}
-    # 한 번에 만료 처리할 최대 주문 건수입니다.
+    # 한 번에 만료 처리할 최대 주문 건수
     batch-size: ${ORDER_EXPIRATION_BATCH_SIZE:100}

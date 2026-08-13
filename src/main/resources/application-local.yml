@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:mysql://localhost:3307/mingler?serverTimezone=Asia/Seoul}
+    username: ${DB_USERNAME:mingler}
+    password: ${DB_PASSWORD:mingler}
+
+logging:
+  level:
+    root: info
+    com.zaxxer.hikari.HikariConfig: debug
+    org.hibernate.SQL: debug
+
+# 로컬 개발 전용 기본값입니다.
+jwt:
+  secret: ${JWT_SECRET}
