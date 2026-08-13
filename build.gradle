@@ -69,3 +69,7 @@ tasks.named('test') {
         showStandardStreams = true
     }
 }
+
+tasks.named('bootJar') {
+    archiveFileName = 'app.jar'
+}
