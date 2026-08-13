@@ -3,5 +3,27 @@
     <!-- 결제 재조정 스케줄러의 반복 대상 조회 SQL 콘솔 로그에서 제외 -->
     <turboFilter class="com.lsg.mingler.global.logging.PaymentReconciliationSqlFilter"/>
 
-    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <springProfile name="prod">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+                <format>${CONSOLE_LOG_STRUCTURED_FORMAT}</format>
+                <charset>${CONSOLE_LOG_CHARSET}</charset>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <springProfile name="!prod">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+                <charset>${CONSOLE_LOG_CHARSET}</charset>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <root level="${LOG_LEVEL_ROOT:INFO}">
+        <appender-ref ref="CONSOLE"/>
+    </root>
 </configuration>
