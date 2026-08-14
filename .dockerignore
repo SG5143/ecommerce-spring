@@ -1,0 +1,15 @@
+.git
+.github
+.gradle
+build
+.idea
+.vscode
+.DS_Store
+.env
+.env.*
+secrets
+docs
+loadtest/results
+.venv-locust
+**/__pycache__
+**/*.pyc
