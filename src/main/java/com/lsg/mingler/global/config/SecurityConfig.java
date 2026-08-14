@@ -34,6 +34,8 @@ public class SecurityConfig {
                 // JWT Bearer 방식의 무상태 인증 (서버 세션 미사용)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 컨테이너와 운영 모니터링에서 사용하는 헬스 엔드포인트
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         // SSR 페이지 & 정적 리소스
                         .requestMatchers("/", "/login", "/signup", "/cart", "/checkout", "/checkout/**", "/myshop", "/myshop/**", "/categories/**", "/products/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                         // 회원 본인 정보(요약·상세)는 인증 필요
