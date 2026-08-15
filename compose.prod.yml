@@ -1,0 +1,29 @@
+services:
+  mingler:
+    image: local/mingler:${MINGLER_IMAGE_TAG:?MINGLER_IMAGE_TAG is required}
+    restart: unless-stopped
+    env_file:
+      - ./secrets/mingler.env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+    expose:
+      - "8080"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  backend:
+    external: true
+    name: services_backend
