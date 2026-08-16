@@ -1,0 +1,15 @@
+services:
+  migrator:
+    image: local/mingler-migrator:${MINGLER_IMAGE_TAG:?MINGLER_IMAGE_TAG is required}
+    env_file:
+      - ./secrets/mingler-migrator.env
+    environment:
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    networks:
+      - backend
+    command: info
+
+networks:
+  backend:
+    external: true
+    name: services_backend
