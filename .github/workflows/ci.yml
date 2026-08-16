@@ -17,7 +17,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.0.43
         env:
           MYSQL_DATABASE: testdb
           MYSQL_USER: test
@@ -48,5 +48,56 @@ jobs:
       - name: Gradle Wrapper 실행 권한 부여
         run: chmod +x gradlew
 
-      - name: Gradle 테스트 실행
-        run: ./gradlew test
+      - name: Gradle 빌드 및 테스트 실행
+        run: ./gradlew build
+
+  container:
+    name: Docker 및 Compose 통합 검증
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 런타임 이미지 빌드
+        run: docker build --target runtime -t local/mingler:ci .
+
+      - name: 마이그레이터 이미지 빌드
+        run: docker build --target migrator -t local/mingler-migrator:ci .
+
+      - name: 이미지 구성 검증
+        run: |
+          test "$(docker image inspect local/mingler:ci --format '{{.Config.User}}')" = "10001:10001"
+          docker run --rm --entrypoint java local/mingler:ci -version
+          docker run --rm --entrypoint curl local/mingler:ci --version
+          docker run --rm --entrypoint sh local/mingler:ci -c 'test ! -e /app/.env && test ! -d /app/secrets && test ! -d /app/src'
+
+      - name: 운영 Compose 예시 비밀 파일 준비
+        run: |
+          mkdir -p secrets
+          cp ops/examples/mingler.env.example secrets/mingler.env
+          cp ops/examples/mingler-migrator.env.example secrets/mingler-migrator.env
+
+      - name: 운영 Compose 구문 검증
+        env:
+          MINGLER_IMAGE_TAG: ci
+        run: |
+          docker compose -f compose.prod.yml config --quiet
+          docker compose -f compose.migrate.yml config --quiet
+
+      - name: 로컬 Compose 통합 기동
+        run: docker compose -f compose.local.yml up --build --wait
+
+      - name: 네트워크, 헬스 및 Flyway 검증
+        run: |
+          curl -fsS http://127.0.0.1:8080/actuator/health
+          docker compose -f compose.local.yml exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D "$MYSQL_DATABASE" -Nse "SELECT COUNT(*) FROM flyway_schema_history WHERE version IN (1,2,3,4,5,6) AND success = 1"' | grep -qx 6
+
+      - name: 실패 시 Compose 로그 출력
+        if: failure()
+        run: docker compose -f compose.local.yml logs --no-color
+
+      - name: 로컬 Compose 정리
+        if: always()
+        run: docker compose -f compose.local.yml down -v
