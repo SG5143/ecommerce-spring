@@ -17,3 +17,6 @@ spring:
   sql:
     init:
       mode: never
+
+jwt:
+  secret: mingler-test-secret-key-for-hs256-signing-only
