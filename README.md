@@ -26,7 +26,7 @@ Java 25와 Spring Boot 기반으로 개발하는 이커머스 프로젝트입니
 | Cache | Caffeine                                              |
 | View | Thymeleaf, Vanilla JS, CSS                            |
 | Test & Build | JUnit 5, Mockito, Gradle                              |
-| CI/CD | GitHub Actions, Docker(예정)                            |
+| CI/CD | GitHub Actions, Docker, Docker Compose                  |
 
 ## 핵심 설계 정책
 
@@ -51,6 +51,24 @@ TOSS_SECRET_KEY=발급받은_테스트_시크릿_키
 
 토스 키가 없거나 라이브 키가 설정되면 가상 즉시결제만 표시됩니다. 현재 라이브 결제는 비활성화되어 있으며, `PAYMENT_PROVIDER=toss`에 테스트 키가 아닌 값을 사용하면 애플리케이션 시작이 거부됩니다. 승인 오류를 재현할 때만 local 프로필에서 `TOSS_TEST_CODE`를 추가합니다. 시크릿 키는 브라우저나 저장소에 노출하지 않습니다.
 
+## 로컬 Docker Compose 실행
+
+Java 25 애플리케이션과 MySQL 8.0.43을 독립된 로컬 환경에서 실행합니다. MySQL은 호스트의 `127.0.0.1:3307`, 애플리케이션은 `8080`에 연결됩니다.
+
+```shell
+cp .env.example .env
+docker compose -f compose.local.yml up --build --wait
+curl -fsS http://127.0.0.1:8080/actuator/health
+```
+
+로그는 파일이 아닌 stdout으로 출력되며 Docker `local` 드라이버가 회전합니다. 개발 데이터를 포함한 볼륨까지 제거할 때만 다음 명령을 사용합니다.
+
+```shell
+docker compose -f compose.local.yml down -v
+```
+
+운영은 기존 MySQL을 사용하므로 `compose.prod.yml`에 DB 서비스가 없습니다.
+
 ## 개발 로드맵
 
 | 기간 | 주요 계획 | 상태 |
@@ -58,7 +76,7 @@ TOSS_SECRET_KEY=발급받은_테스트_시크릿_키
 | Week 1 | Flyway·CI 구축, 주문/결제 테이블과 주문서 스냅샷 설계 | 진행 중 |
 | Week 2 | 가상 결제, 재고 차감, 실패 복구, 장바구니 부분 삭제, 결제 멱등성 | 완료 |
 | Week 3 | 토스 테스트 결제창, 승인 트랜잭션 분리, 결제 재조정 | 완료 |
-| Week 4 | JPA 동시성 락 비교, Locust 부하 테스트, Docker/Compose 환경 구축 | 예정 |
+| Week 4 | JPA 동시성 락 비교, Locust 부하 테스트, Docker/Compose 환경 구축 | 진행 중 |
 | Week 5 | 관리자 권한, 상품·주문 관리, 상태 변경 감사 로그 | 예정 |
 | Week 6 | 통합·부하 테스트, 성능 개선, 보안 검토 및 문서화 | 예정 |
 
