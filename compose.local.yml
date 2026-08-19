@@ -32,6 +32,7 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-mingler}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
       DB_USERNAME: ${MYSQL_USER:-mingler}
       DB_PASSWORD: ${MYSQL_PASSWORD:-mingler}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: ${HIKARI_MAXIMUM_POOL_SIZE:-10}
       JWT_SECRET: ${JWT_SECRET:-mingler-local-development-secret-key-change-me}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-virtual}
       TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
