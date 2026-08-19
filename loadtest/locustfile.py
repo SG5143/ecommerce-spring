@@ -41,11 +41,20 @@ def positive_float(name, default):
 
 
 def run_marker():
+    raw_run_label = os.getenv("RUN_LABEL", "DAY12")
+    if len(raw_run_label) > 6:
+        raise ValueError("RUN_LABEL은 6자 이하여야 합니다.")
+    normalized_run_label = re.sub(r"[^A-Za-z0-9_-]", "_", raw_run_label)
+    if not normalized_run_label:
+        raise ValueError("RUN_LABEL에는 영문, 숫자, 밑줄 또는 하이픈이 하나 이상 필요합니다.")
     raw_run_id = os.getenv("RUN_ID", uuid.uuid4().hex[:12])
     normalized_run_id = re.sub(r"[^A-Za-z0-9_-]", "_", raw_run_id)[:24]
     if not normalized_run_id:
         raise ValueError("RUN_ID에는 영문, 숫자, 밑줄 또는 하이픈이 하나 이상 필요합니다.")
-    return f"LOCUST_DAY12_{EXPECTED_LOCK_MODE}_{normalized_run_id}"
+    marker = f"LOCUST_{normalized_run_label}_{EXPECTED_LOCK_MODE}_{normalized_run_id}"
+    if len(marker) > 50:
+        raise ValueError("실행 마커는 주문자명 제한에 맞게 50자 이하여야 합니다.")
+    return marker
 
 
 def lock_mode():
@@ -75,7 +84,7 @@ except ValueError as configuration_error:
     INITIAL_STOCK = 5
     BARRIER_TIMEOUT_SECONDS = 30
     CSV_FLUSH_GRACE_SECONDS = 6
-    RUN_MARKER = "LOCUST_DAY12_INVALID"
+    RUN_MARKER = "LOCUST_INVALID"
 
 
 class ScenarioState:
@@ -169,7 +178,7 @@ def validate_test_configuration(environment, **kwargs):
         return
 
     LOGGER.info(
-        "Day 12 재고 경합 시작: runMarker=%s, lockMode=%s, productId=%s, optionId=%s, users=%s, initialStock=%s",
+        "재고 경합 시작: runMarker=%s, lockMode=%s, productId=%s, optionId=%s, users=%s, initialStock=%s",
         RUN_MARKER,
         EXPECTED_LOCK_MODE,
         TARGET_PRODUCT_ID,
@@ -187,7 +196,7 @@ def verify_test_result(environment, **kwargs):
     expected_successes = min(INITIAL_STOCK, CONCURRENT_USERS)
     expected_rejections = max(CONCURRENT_USERS - INITIAL_STOCK, 0)
     LOGGER.info(
-        "Day 12 재고 경합 결과: completed=%s, success=%s, stockRejected=%s, optimisticConflictRejected=%s, unexpected=%s",
+        "재고 경합 결과: completed=%s, success=%s, stockRejected=%s, optimisticConflictRejected=%s, unexpected=%s",
         STATE.completed_count,
         STATE.success_count,
         STATE.stock_rejection_count,
@@ -278,7 +287,7 @@ class GuestOrderPaymentUser(HttpUser):
                 "address": "서울시 동시성 테스트로 12",
                 "addressDetail": suffix,
             },
-            "deliveryMessage": "Day 12 재고 동시성 부하 테스트",
+            "deliveryMessage": "재고 동시성 부하 테스트",
         }
         with self.client.post(
             "/api/v1/orders",

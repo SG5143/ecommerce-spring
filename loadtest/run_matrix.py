@@ -1,6 +1,7 @@
 import argparse
 import csv
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -14,15 +15,19 @@ RESULTS_ROOT = LOADTEST_ROOT / "results"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Day 12 재고 잠금 부하 테스트 매트릭스를 실행합니다.")
+    parser = argparse.ArgumentParser(description="재고 잠금 부하 테스트 매트릭스를 실행합니다.")
     parser.add_argument("--lock-mode", choices=("pessimistic", "optimistic"), required=True)
     parser.add_argument("--database", required=True)
     parser.add_argument("--host-url", required=True)
     parser.add_argument("--product-id", type=int, required=True)
     parser.add_argument("--option-id", type=int, required=True)
+    parser.add_argument("--users", type=int, nargs="+", default=USERS)
     parser.add_argument("--mysql-host", default="127.0.0.1")
+    parser.add_argument("--mysql-port", type=int, default=3306)
     parser.add_argument("--mysql-user", default="root")
     parser.add_argument("--mysql-password", default="root")
+    parser.add_argument("--results-dir", type=Path, default=RESULTS_ROOT)
+    parser.add_argument("--run-label", default="DAY12")
     return parser.parse_args()
 
 
@@ -31,6 +36,8 @@ def mysql_command(args, *extra):
         "mysql",
         "-h",
         args.mysql_host,
+        "-P",
+        str(args.mysql_port),
         "-u",
         args.mysql_user,
         *extra,
@@ -80,7 +87,7 @@ def snapshot_metrics(args, path):
     path.write_text(result.stdout, encoding="utf-8")
 
 
-def verify_database(args, marker, initial_stock):
+def verify_database(args, marker, users, initial_stock):
     result = source_sql(
         args,
         {
@@ -97,7 +104,41 @@ def verify_database(args, marker, initial_stock):
     row = rows[0]
     if row["stock_conservation_passed"] != "1" or row["no_oversell_passed"] != "1":
         raise RuntimeError(f"재고 불변식 검증에 실패했습니다: {row}")
+    if int(row["created_orders"]) != users:
+        raise RuntimeError(f"생성 주문 수가 다릅니다: expected={users}, actual={row['created_orders']}")
+    if args.lock_mode == "pessimistic":
+        expected_successes = min(users, initial_stock)
+        expected_final_stock = initial_stock - expected_successes
+        if int(row["successful_payments"]) != expected_successes:
+            raise RuntimeError(
+                "성공 결제 수가 다릅니다: "
+                f"expected={expected_successes}, actual={row['successful_payments']}"
+            )
+        if int(row["final_stock"]) != expected_final_stock:
+            raise RuntimeError(
+                f"최종 재고가 다릅니다: expected={expected_final_stock}, actual={row['final_stock']}"
+            )
     return row
+
+
+def verify_cleanup(args, marker, restore_stock):
+    result = run_mysql_sql(
+        args,
+        (
+            "SELECT COUNT(*) AS remaining_orders "
+            "FROM orders "
+            f"WHERE orderer_name='{marker}';"
+        ),
+        capture_output=True,
+    )
+    rows = result.stdout.strip().splitlines()
+    if len(rows) != 2 or rows[1] != "0":
+        raise RuntimeError(f"테스트 주문이 정리되지 않았습니다: {result.stdout}")
+    restored_stock = current_stock(args)
+    if restored_stock != restore_stock:
+        raise RuntimeError(
+            f"재고가 복구되지 않았습니다: expected={restore_stock}, actual={restored_stock}"
+        )
 
 
 def run_locust(args, run_id, users, initial_stock, result_prefix):
@@ -105,6 +146,7 @@ def run_locust(args, run_id, users, initial_stock, result_prefix):
     environment.update(
         {
             "EXPECTED_LOCK_MODE": args.lock_mode,
+            "RUN_LABEL": args.run_label,
             "RUN_ID": run_id,
             "TARGET_PRODUCT_ID": str(args.product_id),
             "TARGET_OPTION_ID": str(args.option_id),
@@ -170,8 +212,8 @@ def compare_metrics(before_path, after_path, output_path):
 
 def run_case(args, scenario, users, initial_stock, repetition, restore_stock):
     run_id = f"{scenario}-u{users}-r{repetition}"
-    marker = f"LOCUST_DAY12_{args.lock_mode}_{run_id}"
-    result_prefix = RESULTS_ROOT / f"{args.lock_mode}-{run_id}"
+    marker = f"LOCUST_{args.run_label}_{args.lock_mode}_{run_id}"
+    result_prefix = args.results_dir / f"{args.lock_mode}-{run_id}"
     before_path = Path(f"{result_prefix}-before.tsv")
     after_path = Path(f"{result_prefix}-after.tsv")
     print(f"START: mode={args.lock_mode}, scenario={scenario}, users={users}, repetition={repetition}")
@@ -189,7 +231,7 @@ def run_case(args, scenario, users, initial_stock, repetition, restore_stock):
         snapshot_metrics(args, before_path)
         run_locust(args, run_id, users, initial_stock, result_prefix)
         verify_csv(result_prefix, users)
-        verification = verify_database(args, marker, initial_stock)
+        verification = verify_database(args, marker, users, initial_stock)
         snapshot_metrics(args, after_path)
         compare_metrics(before_path, after_path, Path(f"{result_prefix}-lock-metrics.txt"))
         print(
@@ -207,13 +249,22 @@ def run_case(args, scenario, users, initial_stock, repetition, restore_stock):
             },
             "cleanup.sql",
         )
+        verify_cleanup(args, marker, restore_stock)
 
 
 def main():
     args = parse_args()
     if args.product_id <= 0 or args.option_id <= 0:
         raise SystemExit("상품과 옵션 ID는 0보다 커야 합니다.")
-    RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
+    if not 1 <= args.mysql_port <= 65535:
+        raise SystemExit("--mysql-port는 1~65535 범위여야 합니다.")
+    if not args.users or any(users <= 0 for users in args.users):
+        raise SystemExit("--users는 0보다 큰 값을 하나 이상 지정해야 합니다.")
+    if len(set(args.users)) != len(args.users):
+        raise SystemExit("--users에 중복된 값을 지정할 수 없습니다.")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,6}", args.run_label):
+        raise SystemExit("--run-label은 영문, 숫자, 밑줄, 하이픈을 사용해 1~6자로 지정해야 합니다.")
+    args.results_dir.mkdir(parents=True, exist_ok=True)
     restore_stock = current_stock(args)
 
     for scenario, stock_for_users in (
@@ -226,7 +277,7 @@ def main():
         ("limited", lambda users: 5),
         ("full", lambda users: users),
     ):
-        for users in USERS:
+        for users in args.users:
             for repetition in range(1, REPETITIONS + 1):
                 run_case(args, scenario, users, stock_for_users(users), repetition, restore_stock)
 
