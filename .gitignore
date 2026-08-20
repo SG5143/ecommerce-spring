@@ -47,6 +47,7 @@ secrets/
 
 ### Load testing ###
 .venv-locust/
+loadtest/README.md
 loadtest/results/
 loadtest/**/__pycache__/
 loadtest/**/*.pyc
