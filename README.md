@@ -69,6 +69,13 @@ docker compose -f compose.local.yml down -v
 
 운영은 기존 MySQL을 사용하므로 `compose.prod.yml`에 DB 서비스가 없습니다.
 
+`redgate/flyway:12.4.0`은 ARM64 이미지를 제공하지 않는다. Apple Silicon에서 migrator 이미지를
+직접 검증할 때는 운영 CI와 같은 Linux AMD64 플랫폼을 지정한다.
+
+```shell
+docker build --platform linux/amd64 --target migrator -t local/mingler-migrator:dev .
+```
+
 ## 개발 로드맵
 
 | 기간 | 주요 계획 | 상태 |
