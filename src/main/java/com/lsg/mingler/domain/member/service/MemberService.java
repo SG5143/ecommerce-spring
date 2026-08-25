@@ -81,6 +81,14 @@ public class MemberService {
         );
     }
 
+    /** 관리자 헤더에 표시할 현재 로그인 회원의 이름을 조회한다. */
+    @Transactional(readOnly = true)
+    public String getName(Long memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> new AuthenticationException("회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."))
+                .getName();
+    }
+
     /**
      * 회원정보 수정 페이지용 상세 조회. 기본 배송지가 없으면 주소 필드는 null 로 내려감
      */

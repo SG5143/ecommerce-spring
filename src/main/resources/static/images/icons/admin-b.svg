@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">관리자</title>
+    <g fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M32 13 45 18v10c0 9-5.3 16.8-13 21-7.7-4.2-13-12-13-21V18l13-5Z"/>
+        <circle cx="32" cy="27" r="4"/>
+        <path d="M25.5 39c.8-4 3.2-6 6.5-6s5.7 2 6.5 6"/>
+    </g>
+</svg>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<header class="admin-header" th:fragment="header(active)">
+    <div class="admin-header-inner">
+        <a class="admin-brand" th:href="@{/admin}">Mingler <p>Admin</p></a>
+
+        <nav class="admin-main-nav" aria-label="관리자 메인 메뉴">
+            <ul>
+                <li>
+                    <a th:href="@{/admin}" th:classappend="${active == 'dashboard'} ? ' is-active'"
+                       th:attr="aria-current=${active == 'dashboard'} ? 'page' : null">대시보드</a>
+                </li>
+                <li>
+                    <a th:href="@{/admin/products}" class="not-implemented"
+                       th:classappend="${active == 'products'} ? ' is-active'">상품관리</a>
+                </li>
+                <li>
+                    <a th:href="@{/admin/orders}" class="not-implemented"
+                       th:classappend="${active == 'orders'} ? ' is-active'">주문관리</a>
+                </li>
+                <li>
+                    <a th:href="@{/admin/audit-logs}" class="not-implemented"
+                       th:classappend="${active == 'audit-logs'} ? ' is-active'">감사로그</a>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="admin-header-actions">
+            <span class="admin-user-name" th:text="${adminName + '님'}">000님</span>
+            <button type="button" id="admin-logout" class="admin-logout">로그아웃</button>
+        </div>
+    </div>
+    <script th:src="@{/js/api.js}" defer="defer"></script>
+    <script th:src="@{/js/admin-header.js}" defer="defer"></script>
+</header>
+</body>
+</html>

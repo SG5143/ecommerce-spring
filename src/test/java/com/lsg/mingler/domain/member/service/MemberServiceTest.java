@@ -173,6 +173,15 @@ class MemberServiceTest {
     }
 
     @Test
+    void 회원_ID로_관리자_헤더에_표시할_이름을_조회한다() {
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember()));
+
+        String name = memberService.getName(1L);
+
+        assertThat(name).isEqualTo("홍길동");
+    }
+
+    @Test
     void 이메일_형식이_틀리면_수정에_실패한다() {
         when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember()));
 
