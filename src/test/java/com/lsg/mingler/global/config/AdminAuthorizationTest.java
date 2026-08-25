@@ -1,7 +1,9 @@
 package com.lsg.mingler.global.config;
 
 import com.lsg.mingler.domain.product.service.CategoryService;
+import com.lsg.mingler.global.jwt.AdminAccessTokenCookie;
 import com.lsg.mingler.global.jwt.JwtTokenProvider;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -62,6 +64,46 @@ class AdminAuthorizationTest {
 
         assertAllowedWithToken(ADMIN_PAGE_PATH, "admin-token");
         assertAllowedWithToken(ADMIN_API_PATH, "admin-token");
+    }
+
+    @Test
+    void 관리자_쿠키로_관리자_페이지에_접근할_수_있다() throws Exception {
+        mockValidToken("admin-cookie-token", "ADMIN");
+
+        mockMvc.perform(get(ADMIN_PAGE_PATH)
+                        .cookie(new Cookie(AdminAccessTokenCookie.NAME, "admin-cookie-token")))
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
+    }
+
+    @Test
+    void 일반_회원_쿠키로_관리자_페이지에_접근하면_403을_반환한다() throws Exception {
+        mockValidToken("user-cookie-token", "USER");
+
+        mockMvc.perform(get(ADMIN_PAGE_PATH)
+                        .cookie(new Cookie(AdminAccessTokenCookie.NAME, "user-cookie-token")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
+    }
+
+    @Test
+    void 유효하지_않은_관리자_쿠키로_페이지에_접근하면_401을_반환한다() throws Exception {
+        when(jwtTokenProvider.validate("invalid-cookie-token")).thenReturn(false);
+
+        mockMvc.perform(get(ADMIN_PAGE_PATH)
+                        .cookie(new Cookie(AdminAccessTokenCookie.NAME, "invalid-cookie-token")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("유효하지 않거나 만료된 인증 정보입니다."));
+    }
+
+    @Test
+    void 관리자_쿠키만으로_관리자_API에_접근할_수_없다() throws Exception {
+        mockValidToken("admin-cookie-token", "ADMIN");
+
+        mockMvc.perform(get(ADMIN_API_PATH)
+                        .cookie(new Cookie(AdminAccessTokenCookie.NAME, "admin-cookie-token")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
     }
 
     private void assertUnauthorizedWithoutToken(String path) throws Exception {

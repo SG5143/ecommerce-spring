@@ -23,7 +23,7 @@ public class AuthApiController {
     private final AuthService authService;
 
     /**
-     * 로그인. Access 토큰은 바디로, Refresh 토큰은 HttpOnly 쿠키로 응답
+     * 로그인. Access 토큰은 바디와 관리자 페이지 전용 쿠키로, Refresh 토큰은 HttpOnly 쿠키로 응답
      */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
@@ -31,7 +31,7 @@ public class AuthApiController {
     }
 
     /**
-     * Refresh 쿠키로 Access 토큰을 재발급하고 Refresh 토큰을 재발급
+     * Refresh 쿠키로 Access 토큰과 관리자 페이지 전용 쿠키, Refresh 토큰을 재발급
      */
     @PostMapping("/reissue")
     public ResponseEntity<ReissueResponse> reissue(@CookieValue(name = REFRESH_COOKIE_NAME, required = false) String refreshToken, HttpServletResponse response) {
@@ -39,7 +39,7 @@ public class AuthApiController {
     }
 
     /**
-     * 로그아웃. Refresh 토큰을 폐기하고 쿠키 삭제
+     * 로그아웃. Refresh 토큰을 폐기하고 Refresh·관리자 Access 쿠키 삭제
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@CookieValue(name = REFRESH_COOKIE_NAME, required = false) String refreshToken, HttpServletResponse response) {

@@ -35,7 +35,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 관리자 페이지와 API는 ROLE_ADMIN 권한 전용
-                        .requestMatchers("/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/admin", "/admin/**", "/api/v1/admin", "/api/v1/admin/**").hasRole("ADMIN")
                         // 컨테이너와 운영 모니터링에서 사용하는 헬스 엔드포인트
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         // SSR 페이지 & 정적 리소스
@@ -57,7 +57,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-                // Bearer 헤더 기반 무상태 API + Refresh 쿠키는 SameSite=Strict 로 CSRF 를 완화하므로 csrf 비활성화
+                // API는 Bearer 방식이며 관리자 쿠키는 GET/HEAD 뷰 전용이고 SameSite=Strict 이므로 csrf 비활성화
                 .csrf(AbstractHttpConfigurer::disable)
                 // 인증 실패는 401, 권한 부족은 403과 ErrorResponse JSON 반환
                 .exceptionHandling(handler -> handler

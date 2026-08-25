@@ -8,6 +8,7 @@ import com.lsg.mingler.domain.auth.entity.RefreshToken;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.entity.Member;
 import com.lsg.mingler.global.error.AuthenticationException;
+import com.lsg.mingler.global.jwt.AdminAccessTokenCookie;
 import com.lsg.mingler.global.jwt.JwtProperties;
 import com.lsg.mingler.global.jwt.JwtTokenProvider;
 import com.lsg.mingler.global.util.HashUtils;
@@ -53,7 +54,7 @@ public class AuthService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
-     * 로그인: 자격증명을 검증하고 Access 토큰(바디)과 Refresh 토큰(HttpOnly 쿠키)을 발급
+     * 로그인: 자격증명을 검증하고 Access 토큰(바디·관리자 페이지 쿠키)과 Refresh 토큰(HttpOnly 쿠키)을 발급
      * 계정 존재 여부가 노출되지 않도록 아이디 미존재와 비밀번호 불일치는 동일 메시지로 응답
      */
     public LoginResponse login(LoginRequest request, HttpServletResponse response) {
@@ -79,11 +80,12 @@ public class AuthService {
 
         issueRefreshToken(member.getId(), response);
         String accessToken = tokenProvider.createAccessToken(member.getId(), member.getRole());
+        AdminAccessTokenCookie.issue(response, accessToken, jwtProperties.accessTokenValidity());
         return new LoginResponse(accessToken);
     }
 
     /**
-     * 토큰 재발급: 쿠키의 Refresh 토큰을 검증하고 재발급
+     * 토큰 재발급: 쿠키의 Refresh 토큰을 검증하고 Access·Refresh 토큰을 재발급
      * 이미 폐기된 토큰이 다시 들어오면 탈취로 간주해 해당 회원의 모든 Refresh 토큰을 폐기
      */
     public ReissueResponse reissue(String refreshTokenValue, HttpServletResponse response) {
@@ -111,11 +113,12 @@ public class AuthService {
 
         issueRefreshToken(member.getId(), response);
         String accessToken = tokenProvider.createAccessToken(member.getId(), member.getRole());
+        AdminAccessTokenCookie.issue(response, accessToken, jwtProperties.accessTokenValidity());
         return new ReissueResponse(accessToken);
     }
 
     /**
-     * 로그아웃: 전달된 Refresh 토큰을 폐기하고 쿠키를 삭제
+     * 로그아웃: 전달된 Refresh 토큰을 폐기하고 Refresh·관리자 Access 쿠키를 삭제
      */
     public void logout(String refreshTokenValue, HttpServletResponse response) {
         if (refreshTokenValue != null && !refreshTokenValue.isBlank()) {
@@ -126,6 +129,7 @@ public class AuthService {
                     });
         }
         expireRefreshCookie(response);
+        AdminAccessTokenCookie.expire(response);
     }
 
     /**

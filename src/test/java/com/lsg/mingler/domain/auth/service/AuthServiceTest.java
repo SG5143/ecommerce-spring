@@ -3,6 +3,7 @@ package com.lsg.mingler.domain.auth.service;
 import com.lsg.mingler.domain.auth.dao.RefreshTokenRepository;
 import com.lsg.mingler.domain.auth.dto.LoginRequest;
 import com.lsg.mingler.domain.auth.dto.LoginResponse;
+import com.lsg.mingler.domain.auth.dto.ReissueResponse;
 import com.lsg.mingler.domain.auth.entity.RefreshToken;
 import com.lsg.mingler.domain.member.dao.MemberRepository;
 import com.lsg.mingler.domain.member.entity.Member;
@@ -18,6 +19,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -68,6 +71,7 @@ class AuthServiceTest {
         Member member = activeMember();
         when(memberRepository.findByUsername("tester")).thenReturn(Optional.of(member));
         when(passwordEncoder.matches("rawpw", "encoded-password")).thenReturn(true);
+        when(jwtProperties.accessTokenValidity()).thenReturn(Duration.ofMinutes(30));
         when(jwtProperties.refreshTokenValidity()).thenReturn(Duration.ofDays(14));
         when(tokenProvider.createAccessToken(any(), anyString())).thenReturn("access-token");
 
@@ -76,6 +80,51 @@ class AuthServiceTest {
         assertThat(result.accessToken()).isEqualTo("access-token");
         verify(refreshTokenRepository).save(any(RefreshToken.class));
         verify(memberRepository).save(member);
+
+        ArgumentCaptor<String> cookieCaptor = ArgumentCaptor.forClass(String.class);
+        verify(response, times(2)).addHeader(eq("Set-Cookie"), cookieCaptor.capture());
+        assertThat(cookieCaptor.getAllValues()).anySatisfy(cookie -> {
+            assertThat(cookie).startsWith("adminAccessToken=access-token");
+            assertThat(cookie).contains("Path=/admin", "Max-Age=1800", "Secure", "HttpOnly", "SameSite=Strict");
+        });
+    }
+
+    @Test
+    void 토큰_재발급시_관리자_페이지용_Access_쿠키도_갱신한다() {
+        RefreshToken stored = RefreshToken.builder()
+                .memberId(1L)
+                .tokenHash("hash")
+                .expiresAt(LocalDateTime.now().plusDays(1))
+                .build();
+        Member member = activeMember();
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(stored));
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(jwtProperties.accessTokenValidity()).thenReturn(Duration.ofMinutes(30));
+        when(jwtProperties.refreshTokenValidity()).thenReturn(Duration.ofDays(14));
+        when(tokenProvider.createAccessToken(any(), anyString())).thenReturn("renewed-access-token");
+
+        ReissueResponse result = authService.reissue("refresh-token", response);
+
+        assertThat(result.accessToken()).isEqualTo("renewed-access-token");
+        ArgumentCaptor<String> cookieCaptor = ArgumentCaptor.forClass(String.class);
+        verify(response, times(2)).addHeader(eq("Set-Cookie"), cookieCaptor.capture());
+        assertThat(cookieCaptor.getAllValues())
+                .anyMatch(cookie -> cookie.startsWith("adminAccessToken=renewed-access-token")
+                        && cookie.contains("Path=/admin")
+                        && cookie.contains("Max-Age=1800"));
+    }
+
+    @Test
+    void 로그아웃하면_Refresh와_관리자_Access_쿠키를_모두_만료한다() {
+        authService.logout(null, response);
+
+        ArgumentCaptor<String> cookieCaptor = ArgumentCaptor.forClass(String.class);
+        verify(response, times(2)).addHeader(eq("Set-Cookie"), cookieCaptor.capture());
+        assertThat(cookieCaptor.getAllValues())
+                .anyMatch(cookie -> cookie.startsWith("refreshToken=") && cookie.contains("Max-Age=0"))
+                .anyMatch(cookie -> cookie.startsWith("adminAccessToken=")
+                        && cookie.contains("Path=/admin")
+                        && cookie.contains("Max-Age=0"));
     }
 
     @Test

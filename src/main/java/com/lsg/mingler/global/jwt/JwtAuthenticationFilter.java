@@ -15,7 +15,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * 요청마다 한 번 실행되어 Authorization: Bearer 헤더의 Access 토큰을 검증하고, 유효하면 SecurityContext 에 인증 정보를 채움
+ * 요청마다 한 번 실행되어 Bearer 헤더 또는 관리자 페이지 전용 쿠키의 Access 토큰을 검증하고,
+ * 유효하면 SecurityContext 에 인증 정보를 채움
  * 토큰이 없거나 유효하지 않으면 인증 없이 통과시키고, 접근 허용 여부는 SecurityConfig 의 규칙이 결정
  */
 @RequiredArgsConstructor
@@ -55,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith(BEARER_PREFIX)) {
             return header.substring(BEARER_PREFIX.length());
         }
-        return null;
+        return AdminAccessTokenCookie.resolve(request);
     }
 
 }
